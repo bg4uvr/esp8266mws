@@ -148,7 +148,7 @@ void setup()
   Serial.println("BMP280传感器初始化成功");
 
   //每10分钟发送数据
-  tker.attach(5 * 60, data_flush);
+  tker.attach(10 * 60, data_flush);
 }
 
 void data_flush()
