@@ -155,7 +155,7 @@ void data_flush()
 {
   if (all_ok)
   {
-    int temperature = bmp.readTemperature();
+    float temperature = bmp.readTemperature();
     int pressure = bmp.readPressure() / 10; //把气压浮点数的Pa值转换成0.1hPa的整形数值
 
     Serial.printf("温度：");
