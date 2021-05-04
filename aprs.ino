@@ -40,7 +40,6 @@ void WiFisetup()
   }
 
   //if you get here you have connected to the WiFi
-  WiFi.setAutoConnect(true); // 设置自动连接
   Serial.println("WiFi Connected!");
   Serial.print("IP ssid: ");
   Serial.println(WiFi.SSID());
@@ -162,53 +161,62 @@ void data_flush()
 
 void loop()
 {
-  //如果未连接APRS服务器
-  if (!client.connected())
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    //如果未连接APRS服务器
+    if (!client.connected())
+    {
+      auth = false;
+      Serial.println(F("APRS服务器未连接，正在连接..."));
+      if (client.connect(host, port))
+        Serial.println(F("APRS服务器已连接"));
+    }
+
+    //如果缓冲区字符串大于0
+    if (client.available())
+    {
+      String line = client.readStringUntil('\n'); //获取字符串
+      Serial.println(line);                       //把字符串传给串口
+
+      if (auth == false)
+      {
+        if (line.indexOf("javAPRSSrvr") != -1)    // !=-1含有 ==-1不含有
+        {
+          Serial.println("javAPRSSrvr");
+        }
+        else if (line.indexOf("aprsc") != -1)
+        {
+          Serial.println(F("正在登录ARPS服务器..."));
+          Serial.println(logininfo);
+          client.print(logininfo);                //向服务器反馈登录信息
+        }
+        else if (line.indexOf("verified") != -1)
+        {
+          //验证成功
+          Serial.println(F("APRS服务器登录验证已通过"));
+          auth = true;
+          data_flush();
+          last_time = millis();
+        }
+      }
+    }
+
+    //在已验证情况下，每间隔定时周期，发送一次数据
+    if (auth == true)
+    {
+      uint32_t now_time = millis();
+      if (now_time - last_time >= SEND_INTERVAL)
+      {
+        data_flush();
+        last_time = now_time;
+      }
+    }
+  }
+  else
   {
     auth = false;
-    Serial.println(F("APRS服务器未连接，正在连接..."));
-    if (client.connect(host, port))
-      Serial.println(F("APRS服务器已连接"));
-  }
-
-  //如果缓冲区字符串大于0
-  if (client.available())
-  {
-    String line = client.readStringUntil('\n'); //获取字符串
-    Serial.println(line);                       //把字符串传给串口
-
-    if (auth == false)
-    {
-      if (line.indexOf("javAPRSSrvr") != -1)    // !=-1含有 ==-1不含有
-      {
-        Serial.println("javAPRSSrvr");
-      }
-      else if (line.indexOf("aprsc") != -1)
-      {
-        Serial.println(F("正在登录ARPS服务器..."));
-        Serial.println(logininfo);
-        client.print(logininfo);                //向服务器反馈登录信息
-      }
-      else if (line.indexOf("verified") != -1)
-      {
-        //验证成功
-        Serial.println(F("APRS服务器登录验证已通过"));
-        auth = true;
-        data_flush();
-        last_time = millis();
-      }
-    }
-  }
-
-  //在已验证情况下，每间隔定时周期，发送一次数据
-  if (auth == true)
-  {
-    uint32_t now_time = millis();
-    if (now_time - last_time >= SEND_INTERVAL)
-    {
-      data_flush();
-      last_time = now_time;
-    }
+    Serial.println("WiFi连接中断...");
+    delay(5000);
   }
 
   //扫描OTA任务
