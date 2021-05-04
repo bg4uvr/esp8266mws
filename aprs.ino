@@ -204,7 +204,7 @@ void loop()
   if (auth == true)
   {
     uint32_t now_time = millis();
-    if (now_time - last_time >= SEND_INTERVAL || last_time > now_time)
+    if (now_time - last_time >= SEND_INTERVAL)
     {
       data_flush();
       last_time = now_time;
