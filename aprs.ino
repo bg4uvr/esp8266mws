@@ -2,22 +2,23 @@
 
 #include <ESP8266WiFi.h>
 #include <Wire.h>
-#include <Ticker.h>
+#include <Time.h>
 #include <WiFiManager.h>
 #include <ArduinoOTA.h>
 #include <Adafruit_BMP280.h>
 
-WiFiClient client;                                                                     //初始化WiFiclient实例
-bool auth = false;                                                                     //APRS验证状态
-bool connect_wifi = false;                                                             //WiFi连接状态
-const char *host = "china.aprs2.net";                                                  //APRS服务器地址
-const int port = 14580;                                                                //APRS服务器端口
-const char *logininfo = "user BG4UVR-10 pass 21410 vers esp-01s 0.1 filter m/50\r\n";  //APRS登录命令
-char senddata[150] = {0};                                                              //APRS数据缓存
-bool all_ok = false;                                                                   //所有发送的条件都已具备
+#define SEND_INTERVAL 10*60*1000  //发送数据间隔（毫秒）
 
-Adafruit_BMP280 bmp; //初始化BMP280实例
-Ticker tker;         //初始化定时器实例
+WiFiClient client;                                              //初始化WiFiclient实例
+const char *host = "china.aprs2.net";                           //APRS服务器地址
+const int port = 14580;                                         //APRS服务器端口
+const char *logininfo =
+  "user BG4UVR-10 pass 21410 vers esp-01s 0.1 filter m/50\r\n"; //APRS登录命令
+char senddata[150] = {0};                                       //APRS数据缓存
+bool auth = false;                                              //APRS验证状态
+
+Adafruit_BMP280 bmp;            //初始化BMP280实例
+uint32_t last_time;
 
 //自动配网
 void WiFisetup()
@@ -25,13 +26,7 @@ void WiFisetup()
   //WiFiManager
   //Local intialization. Once its business is done, there is no need to keep it around
   WiFiManager wifiManager;
-
   //wifiManager.resetSettings();
-
-  //wifiManager.setAPStaticIPConfig(IPAddress(10, 0, 1, 1), IPAddress(10, 0, 1, 1), IPAddress(255, 255, 255, 0));
-  //wifiManager.autoConnect("Wifi Clock");
-  //wifiManager.setTimeout(180);
-
   wifiManager.setConfigPortalTimeout(60);
   //1 minute
 
@@ -64,7 +59,7 @@ void Otasetup()
 
   // No authentication by default
   //ArduinoOTA.setPassword("admin");
-  ArduinoOTA.setPassword("21232f297a57a5a743894a0e4a801fc3");
+  //ArduinoOTA.setPassword("21232f297a57a5a743894a0e4a801fc3");
 
   // Password can be set with it's md5 value as well
   // MD5(admin) = 21232f297a57a5a743894a0e4a801fc3
@@ -122,20 +117,16 @@ void Otasetup()
 void setup()
 {
   Serial.begin(115200); //配置串口
+  WiFisetup();          //自动配网
+  Otasetup();           //OTA更新
 
-  WiFisetup(); //自动配网
-  Otasetup();  //OTA更新
-
-  connect_wifi = true;
-
-  Serial.println("");
   Serial.println("正在初始化BMP280传感器...");
-
   if (!bmp.begin(BMP280_ADDRESS_ALT))
   {
     Serial.println(F("未找到BMP280传感器，请检查接线以及设置正确i2c地址(0x76 或 0x77)。"));
+    Serial.println(F("系统当前已停止..."));
     while (1)
-      delay(10);
+      ArduinoOTA.handle();  //系统停止执行，只扫描OTA任务
   }
 
   //设置BMP280采样参数
@@ -146,31 +137,27 @@ void setup()
                   Adafruit_BMP280::STANDBY_MS_500);
 
   Serial.println("BMP280传感器初始化成功");
-
-  //每10分钟发送数据
-  tker.attach(10 * 60, data_flush);
 }
 
+//发送数据
 void data_flush()
 {
-  if (all_ok)
-  {
-    float temperature = bmp.readTemperature();
-    int pressure = bmp.readPressure() / 10; //把气压浮点数的Pa值转换成0.1hPa的整形数值
+  float temperature = bmp.readTemperature();
+  int pressure = bmp.readPressure() / 10; //把气压浮点数的Pa值转换成0.1hPa的整形数值
 
-    Serial.printf("温度：");
-    Serial.print(temperature);
-    Serial.print('\t');
-    Serial.printf("气压：");
-    Serial.println(pressure);
+  Serial.printf("温度：");
+  Serial.print(temperature);
+  Serial.print('\t');
+  Serial.printf("气压：");
+  Serial.println(pressure);
+  int temperaturef = temperature * 9 / 5 + 32; //转换成华氏度
 
-    int temperaturef = temperature * 9 / 5 + 32; //转换成华氏度
+  snprintf(senddata, sizeof(senddata),
+           "BG4UVR-10>APESP,qAS,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h00b%05d esp-01s + bmp280\r\n",
+           temperaturef, pressure);
 
-    snprintf(senddata, sizeof(senddata), "BG4UVR-10>APESP,qAS,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h00b%05d esp-01s + bmp280\r\n", temperaturef, pressure);
-    client.print(senddata); //向服务器反馈信息
-
-    Serial.println(senddata);
-  }
+  client.print(senddata);       //向服务器反馈信息
+  Serial.println(senddata);
 }
 
 void loop()
@@ -184,14 +171,15 @@ void loop()
       Serial.println(F("APRS服务器已连接"));
   }
 
-  if (client.available()) //如果缓冲区字符串大于0
+  //如果缓冲区字符串大于0
+  if (client.available())
   {
     String line = client.readStringUntil('\n'); //获取字符串
     Serial.println(line);                       //把字符串传给串口
 
     if (auth == false)
     {
-      if (line.indexOf("javAPRSSrvr") != -1) // !=-1含有 ==-1不含有
+      if (line.indexOf("javAPRSSrvr") != -1)    // !=-1含有 ==-1不含有
       {
         Serial.println("javAPRSSrvr");
       }
@@ -199,17 +187,30 @@ void loop()
       {
         Serial.println(F("正在登录ARPS服务器..."));
         Serial.println(logininfo);
-        client.print(logininfo); //向服务器反馈登录信息
+        client.print(logininfo);                //向服务器反馈登录信息
       }
       else if (line.indexOf("verified") != -1)
       {
         //验证成功
         Serial.println(F("APRS服务器登录验证已通过"));
         auth = true;
-        all_ok = true;
         data_flush();
+        last_time = millis();
       }
     }
   }
+
+  //在已验证情况下，每间隔定时周期，发送一次数据
+  if (auth == true)
+  {
+    uint32_t now_time = millis();
+    if (now_time - last_time >= SEND_INTERVAL || last_time > now_time)
+    {
+      data_flush();
+      last_time = now_time;
+    }
+  }
+
+  //扫描OTA任务
   ArduinoOTA.handle();
 }
