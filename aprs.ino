@@ -19,6 +19,8 @@ bool auth = false;                                              //APRS验证状�
 
 Adafruit_BMP280 bmp;            //初始化BMP280实例
 uint32_t last_time;
+uint32_t now_time;
+uint32_t data_cnt;
 
 //自动配网
 void WiFisetup()
@@ -139,7 +141,7 @@ void setup()
 }
 
 //发送数据
-void data_flush()
+void send_data()
 {
   float temperature = bmp.readTemperature();
   int pressure = bmp.readPressure() / 10; //把气压浮点数的Pa值转换成0.1hPa的整形数值
@@ -152,8 +154,8 @@ void data_flush()
   int temperaturef = temperature * 9 / 5 + 32; //转换成华氏度
 
   snprintf(senddata, sizeof(senddata),
-           "BG4UVR-10>APESP,qAS,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h00b%05d esp-01s + bmp280\r\n",
-           temperaturef, pressure);
+           "BG4UVR-10>APESP,qAS,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h00b%05d cnt: %d, tm: %dm\r\n",
+           temperaturef, pressure, ++data_cnt, now_time / (60 * 1000));
 
   client.print(senddata);       //向服务器反馈信息
   Serial.println(senddata);
@@ -195,7 +197,7 @@ void loop()
           //验证成功
           Serial.println(F("APRS服务器登录验证已通过"));
           auth = true;
-          data_flush();
+          send_data();
           last_time = millis();
         }
       }
@@ -204,10 +206,10 @@ void loop()
     //在已验证情况下，每间隔定时周期，发送一次数据
     if (auth == true)
     {
-      uint32_t now_time = millis();
+      now_time = millis();
       if (now_time - last_time >= SEND_INTERVAL)
       {
-        data_flush();
+        send_data();
         last_time = now_time;
       }
     }
