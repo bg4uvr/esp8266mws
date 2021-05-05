@@ -241,6 +241,7 @@ void loop()
       else if (line.indexOf("verified") != -1)
       {
         auth = true;            //验证成功
+        send_data();
         Serial.println(F("APRS服务器登录验证已通过"));
       }
     }
