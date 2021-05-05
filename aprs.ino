@@ -1,5 +1,7 @@
 // ESP8266 APRS 气象站
 
+#define DEBUG_MODE
+
 #include <ESP8266WiFi.h>
 #include <Wire.h>
 #include <Time.h>
@@ -7,19 +9,21 @@
 #include <ArduinoOTA.h>
 #include <Adafruit_BMP280.h>
 
-#define SEND_INTERVAL 10*60*1000  //发送数据间隔（毫秒）
+#define SEND_INTERVAL 10*1000  //发送数据间隔（毫秒）
+#define RECV_INTERVAL 30*1000 //接收心跳包的间隔， aprsc 2.1.5 服务器大约为20秒
 
 WiFiClient client;                                              //初始化WiFiclient实例
 const char *host = "china.aprs2.net";                           //APRS服务器地址
 const int port = 14580;                                         //APRS服务器端口
 const char *logininfo =
-  "user BG4UVR-10 pass 21410 vers esp-01s 0.1 filter m/50\r\n"; //APRS登录命令
+  "user BG4UVR-10 pass 21410 vers esp-01s 0.1 filter m/10\r\n"; //APRS登录命令
 char senddata[150] = {0};                                       //APRS数据缓存
 bool auth = false;                                              //APRS验证状态
 
 Adafruit_BMP280 bmp;            //初始化BMP280实例
-uint32_t last_time;
 uint32_t now_time;
+uint32_t last_send;
+uint32_t last_recv;
 uint32_t data_cnt;
 
 //自动配网
@@ -154,71 +158,81 @@ void send_data()
   int temperaturef = temperature * 9 / 5 + 32; //转换成华氏度
 
   snprintf(senddata, sizeof(senddata),
-           "BG4UVR-10>APESP,qAS,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h00b%05d cnt: %d, tm: %dm\r\n",
-           temperaturef, pressure, ++data_cnt, now_time / (60 * 1000));
+           "BG4UVR-10>APESP,qAS,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h00b%05d send_cnt:%d, runtime:%ds\r\n",
+           temperaturef, pressure, ++data_cnt, now_time / (1000));
 
+#ifndef DEBUG_MODE
   client.print(senddata);       //向服务器反馈信息
+#endif
   Serial.println(senddata);
 }
 
 void loop()
 {
-  if (WiFi.status() == WL_CONNECTED)
+  //取得当前运行时间
+  now_time = millis();
+
+  //如果尚未建立APRS服务器连接
+  if (!client.connected())
   {
-    //如果未连接APRS服务器
-    if (!client.connected())
+    Serial.println(F("APRS服务器未连接，正在连接..."));
+    if (client.connect(host, port))
     {
-      auth = false;
-      Serial.println(F("APRS服务器未连接，正在连接..."));
-      if (client.connect(host, port))
-        Serial.println(F("APRS服务器已连接"));
+      last_recv = now_time;
+      Serial.println(F("APRS服务器已连接"));
     }
-
-    //如果缓冲区字符串大于0
-    if (client.available())
+    else
     {
-      String line = client.readStringUntil('\n'); //获取字符串
-      Serial.println(line);                       //把字符串传给串口
+      Serial.println(F("APRS服务器连接失败，稍后重试"));
+      delay(5000);
+    }
+  }
+  //接收超时主动断开连接
+  else if (now_time - last_recv > RECV_INTERVAL)
+  {
+    auth = false;
+    client.stop();
+    Serial.println(F("APRS服务器数据接收超时，已断开"));
+  }
 
-      if (auth == false)
+  //如果缓冲区字符串大于0
+  if (client.available())
+  {
+    String line = client.readStringUntil('\n'); //获取字符串
+    Serial.println(line);                       //把字符串传给串口
+    last_recv = now_time;                       //更新最后接收数据时间
+
+    if (auth == false)
+    {
+      if (line.indexOf("javAPRSSrvr") != -1)    // !=-1含有 ==-1不含有
       {
-        if (line.indexOf("javAPRSSrvr") != -1)    // !=-1含有 ==-1不含有
-        {
-          Serial.println("javAPRSSrvr");
-        }
-        else if (line.indexOf("aprsc") != -1)
-        {
-          Serial.println(F("正在登录ARPS服务器..."));
-          Serial.println(logininfo);
-          client.print(logininfo);                //向服务器反馈登录信息
-        }
-        else if (line.indexOf("verified") != -1)
-        {
-          //验证成功
-          Serial.println(F("APRS服务器登录验证已通过"));
-          auth = true;
-          send_data();
-          last_time = millis();
-        }
+        Serial.println("javAPRSSrvr");
       }
-    }
-
-    //在已验证情况下，每间隔定时周期，发送一次数据
-    if (auth == true)
-    {
-      now_time = millis();
-      if (now_time - last_time >= SEND_INTERVAL)
+      else if (line.indexOf("aprsc") != -1)
       {
+        Serial.println(F("正在登录ARPS服务器..."));
+        Serial.println(logininfo);
+        client.print(logininfo);                //向服务器反馈登录信息
+      }
+      else if (line.indexOf("verified") != -1)
+      {
+        //验证成功
+        Serial.println(F("APRS服务器登录验证已通过"));
+        auth = true;
         send_data();
-        last_time = now_time;
+        last_send = now_time;
       }
     }
   }
-  else
+
+  //在已验证情况下，每间隔定时周期，发送一次数据
+  if (auth == true)
   {
-    auth = false;
-    Serial.println("WiFi连接中断...");
-    delay(5000);
+    if (now_time - last_send >= SEND_INTERVAL)
+    {
+      send_data();
+      last_send = now_time;
+    }
   }
 
   //扫描OTA任务
