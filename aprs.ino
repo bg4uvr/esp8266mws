@@ -20,7 +20,7 @@ WiFiClient client;                    //初始化WiFiclient实例
 const char *host = "china.aprs2.net"; //APRS服务器地址
 const int port = 14580;               //APRS服务器端口
 const char *logininfo =
-    "user BG4UVR-10 pass 21410 vers esp-01s 0.1 filter m/10\r\n"; //APRS登录命令
+  "user BG4UVR-10 pass 21410 vers esp-01s 0.1 filter m/10\r\n"; //APRS登录命令
 char senddata[150] = {0};                                         //APRS数据缓存
 bool auth = false;                                                //APRS验证状态
 
@@ -30,7 +30,6 @@ Adafruit_BMP280 bmp; //初始化BMP280实例
 DHTesp dht; //DHT11实例
 #endif
 
-uint32_t now_time;
 uint32_t last_send;
 uint32_t last_recv;
 uint32_t data_cnt;
@@ -181,31 +180,29 @@ void send_data()
 #ifdef HUMIDITY
   snprintf(senddata, sizeof(senddata),
            "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h02db%05d send_cnt:%d, runtime:%ds\r\n",
-           temperaturef, humidity, pressure_int, ++data_cnt, now_time / (1000));
+           temperaturef, humidity, pressure_int, ++data_cnt, millis() / (1000));
 #else
   snprintf(senddata, sizeof(senddata),
            "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h50b%05d send_cnt:%d, runtime:%ds\r\n",
-           temperaturef, pressure_int, ++data_cnt, now_time / (1000));
+           temperaturef, pressure_int, ++data_cnt, millis() / (1000));
 #endif
 
 #ifndef DEBUG_MODE
   client.print(senddata); //向服务器反馈信息
 #endif
+  last_send = millis();
   Serial.println(senddata);
 }
 
 void loop()
 {
-  //取得当前运行时间
-  now_time = millis();
-
   //如果尚未建立APRS服务器连接
   if (!client.connected())
   {
     Serial.println(F("APRS服务器未连接，正在连接..."));
     if (client.connect(host, port))
     {
-      last_recv = now_time;
+      last_recv = millis();
       Serial.println(F("APRS服务器已连接"));
     }
     else
@@ -215,7 +212,7 @@ void loop()
     }
   }
   //接收超时主动断开连接
-  else if (now_time - last_recv > RECV_INTERVAL)
+  else if (millis() - last_recv > RECV_INTERVAL)
   {
     auth = false;
     client.stop();
@@ -225,9 +222,9 @@ void loop()
   //如果缓冲区字符串大于0
   if (client.available())
   {
+    last_recv = millis();                       //更新最后接收数据时间
     String line = client.readStringUntil('\n'); //获取字符串
     Serial.println(line);                       //把字符串传给串口
-    last_recv = now_time;                       //更新最后接收数据时间
 
     if (auth == false)
     {
@@ -243,24 +240,15 @@ void loop()
       }
       else if (line.indexOf("verified") != -1)
       {
-        //验证成功
+        auth = true;            //验证成功
         Serial.println(F("APRS服务器登录验证已通过"));
-        auth = true;
-        send_data();
-        last_send = now_time;
       }
     }
   }
 
   //在已验证情况下，每间隔定时周期，发送一次数据
-  if (auth == true)
-  {
-    if (now_time - last_send >= SEND_INTERVAL)
-    {
-      send_data();
-      last_send = now_time;
-    }
-  }
+  if (auth == true && millis() - last_send >= SEND_INTERVAL)
+    send_data();
 
   //扫描OTA任务
   ArduinoOTA.handle();
