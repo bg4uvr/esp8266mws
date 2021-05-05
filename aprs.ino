@@ -1,6 +1,9 @@
 // ESP8266 APRS 气象站
 
-#define DEBUG_MODE
+//#define DEBUG_MODE  //调试模式时不把语句发往服务器
+//#define HUMIDITY  //不使用湿度时注释掉本句（ESP-01S没有多余IO使用湿度）
+#define SEND_INTERVAL 5 * 60 * 1000 //发送数据间隔（毫秒）
+#define RECV_INTERVAL 30 * 1000     //接收心跳包的间隔， aprsc 2.1.5 服务器大约为20秒
 
 #include <ESP8266WiFi.h>
 #include <Wire.h>
@@ -9,18 +12,24 @@
 #include <ArduinoOTA.h>
 #include <Adafruit_BMP280.h>
 
-#define SEND_INTERVAL 10*1000  //发送数据间隔（毫秒）
-#define RECV_INTERVAL 30*1000 //接收心跳包的间隔， aprsc 2.1.5 服务器大约为20秒
+#ifdef HUMIDITY
+#include "DHTesp.h"
+#endif
 
-WiFiClient client;                                              //初始化WiFiclient实例
-const char *host = "china.aprs2.net";                           //APRS服务器地址
-const int port = 14580;                                         //APRS服务器端口
+WiFiClient client;                    //初始化WiFiclient实例
+const char *host = "china.aprs2.net"; //APRS服务器地址
+const int port = 14580;               //APRS服务器端口
 const char *logininfo =
-  "user BG4UVR-10 pass 21410 vers esp-01s 0.1 filter m/10\r\n"; //APRS登录命令
-char senddata[150] = {0};                                       //APRS数据缓存
-bool auth = false;                                              //APRS验证状态
+    "user BG4UVR-10 pass 21410 vers esp-01s 0.1 filter m/10\r\n"; //APRS登录命令
+char senddata[150] = {0};                                         //APRS数据缓存
+bool auth = false;                                                //APRS验证状态
 
-Adafruit_BMP280 bmp;            //初始化BMP280实例
+Adafruit_BMP280 bmp; //初始化BMP280实例
+
+#ifdef HUMIDITY
+DHTesp dht; //DHT11实例
+#endif
+
 uint32_t now_time;
 uint32_t last_send;
 uint32_t last_recv;
@@ -125,13 +134,17 @@ void setup()
   WiFisetup();          //自动配网
   Otasetup();           //OTA更新
 
+#ifdef HUMIDITY
+  dht.setup(5, DHTesp::DHT11); // Connect DHT sensor to GPIO 5
+#endif
+
   Serial.println("正在初始化BMP280传感器...");
   if (!bmp.begin(BMP280_ADDRESS_ALT))
   {
     Serial.println(F("未找到BMP280传感器，请检查接线以及设置正确i2c地址(0x76 或 0x77)。"));
     Serial.println(F("系统当前已停止..."));
     while (1)
-      ArduinoOTA.handle();  //系统停止执行，只扫描OTA任务
+      ArduinoOTA.handle(); //系统停止执行，只扫描OTA任务
   }
 
   //设置BMP280采样参数
@@ -147,22 +160,36 @@ void setup()
 //发送数据
 void send_data()
 {
+#ifdef HUMIDITY
+  int humidity = dht.getHumidity();
+  if (humidity > 100)
+    humidity = 0;
+#endif
+
   float temperature = bmp.readTemperature();
-  int pressure = bmp.readPressure() / 10; //把气压浮点数的Pa值转换成0.1hPa的整形数值
+  float pressure = bmp.readPressure();
 
-  Serial.printf("温度：");
-  Serial.print(temperature);
-  Serial.print('\t');
-  Serial.printf("气压：");
-  Serial.println(pressure);
+#ifdef HUMIDITY
+  Serial.printf("湿度：%d\t温度：%0.2f\t气压：%0.2f\r\n", humidity, temperature, pressure);
+#else
+  Serial.printf("温度：%0.2f\t气压：%0.2f\r\n", temperature, pressure);
+#endif
+
   int temperaturef = temperature * 9 / 5 + 32; //转换成华氏度
+  int pressure_int = pressure / 10;            //把气压浮点数的Pa值转换成0.1hPa的整形数值
 
+#ifdef HUMIDITY
   snprintf(senddata, sizeof(senddata),
-           "BG4UVR-10>APESP,qAS,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h00b%05d send_cnt:%d, runtime:%ds\r\n",
-           temperaturef, pressure, ++data_cnt, now_time / (1000));
+           "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h02db%05d send_cnt:%d, runtime:%ds\r\n",
+           temperaturef, humidity, pressure_int, ++data_cnt, now_time / (1000));
+#else
+  snprintf(senddata, sizeof(senddata),
+           "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h50b%05d send_cnt:%d, runtime:%ds\r\n",
+           temperaturef, pressure_int, ++data_cnt, now_time / (1000));
+#endif
 
 #ifndef DEBUG_MODE
-  client.print(senddata);       //向服务器反馈信息
+  client.print(senddata); //向服务器反馈信息
 #endif
   Serial.println(senddata);
 }
@@ -204,7 +231,7 @@ void loop()
 
     if (auth == false)
     {
-      if (line.indexOf("javAPRSSrvr") != -1)    // !=-1含有 ==-1不含有
+      if (line.indexOf("javAPRSSrvr") != -1) // !=-1含有 ==-1不含有
       {
         Serial.println("javAPRSSrvr");
       }
@@ -212,7 +239,7 @@ void loop()
       {
         Serial.println(F("正在登录ARPS服务器..."));
         Serial.println(logininfo);
-        client.print(logininfo);                //向服务器反馈登录信息
+        client.print(logininfo); //向服务器反馈登录信息
       }
       else if (line.indexOf("verified") != -1)
       {
