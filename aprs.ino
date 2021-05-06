@@ -20,14 +20,15 @@
 WiFiClient client;                    //初始化WiFiclient实例
 const char *host = "china.aprs2.net"; //APRS服务器地址
 const int port = 14580;               //APRS服务器端口
-const char *logininfo =
-    "user BG4UVR-10 pass 21410 vers esp-01s 0.1 filter m/10\r\n"; //APRS登录命令
-char senddata[150] = {0};                                         //APRS数据缓存
-bool auth = false;                                                //APRS验证状态
+bool auth = false;                    //APRS验证状态
 
 uint32_t last_send;
 uint32_t last_recv;
 uint32_t data_cnt;
+
+WiFiClient clientDBG;                  //初始化调试用WiFiclient实例
+const char *hostDBG = "192.168.1.125"; //APRS服务器地址
+const int portDBG = 14580;             //APRS服务器端口
 
 //自动配网
 void WiFisetup()
@@ -164,9 +165,18 @@ void setup()
     Otasetup();           //OTA更新
 }
 
+void msg(String msg)
+{
+    Serial.println(msg);
+    if (clientDBG.connected())
+        clientDBG.println(msg);
+}
+
 //发送数据
 void send_data()
 {
+    char msgbuf[150] = {0}; //消息格式化缓存
+
     float humidity, temperatureBMP, pressure;   //保存湿度、温度、气压的浮点变量
     int humidityINT, temperatureF, pressureINT; //保存湿度、华氏温度、气压的整数变量
 
@@ -174,55 +184,73 @@ void send_data()
     bool bmpRES = read_bmp280(&temperatureBMP, &pressure); //读取BMP280
     if (dhtRES)                                            //DHT11读取成功
     {
-        Serial.printf("DHT11湿度：%0.2f\r\n", humidity);
+        snprintf(msgbuf, sizeof(msgbuf), "DHT11湿度：%0.2f", humidity);
+        msg(msgbuf);
         humidityINT = humidity;
     }
     else //DHT11读取失败
     {
-        Serial.println("DHT11读取失败");
+        msg("DHT11读取失败");
         humidityINT = 0; //湿度值设为0
     }
 
     if (bmpRES) //BMP280读取成功
     {
-        Serial.printf("BMP280温度：%0.2f\tBMP280气压%0.2f\r\n", temperatureBMP, pressure);
+        snprintf(msgbuf, sizeof(msgbuf), "BMP280温度：%0.2f\tBMP280气压%0.2f", temperatureBMP, pressure);
+        msg(msgbuf);
         temperatureF = temperatureBMP * 9 / 5 + 32; //转换成华氏度
         pressureINT = pressure / 10;                //把气压浮点数的Pa值转换成0.1hPa的整形数值
     }
     else //BMP280读取失败
     {
-        Serial.println("BMP280读取失败");
+        msg("BMP280读取失败");
         temperatureF = 0; //温度值清零
         pressureINT = 0;  //气压值清零
     }
 
     //格式化发送语句
-    snprintf(senddata, sizeof(senddata),
-             "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h%02db%05d send_cnt:%d, runtime:%ds\r\n",
+    //            -- c000s000g000t086r000p000h53b10020
+    //            -- 每秒输出35个字节，包括数据末尾的换行符（OD,OA）
+    //
+    //            -- 数据解析：
+    //            -- c000：风向角度，单位：度。
+    //            -- s000：前1分钟风速，单位：英里每小时
+    //            -- g000：前5分钟最高风速，单位：英里每小时
+    //            -- t086：温度（华氏）
+    //            -- r000：前一小时雨量（0.01英寸）
+    //            -- p000：前24小时内的降雨量（0.01英寸）
+    //            -- h53：湿度（00％= 100％）
+    //            -- b10020：气压（0.1 hpa）
+    snprintf(msgbuf, sizeof(msgbuf),
+             "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h%02db%05d send_cnt:%d, runtime:%ds",
              temperatureF, humidityINT, pressureINT, ++data_cnt, millis() / (1000));
 
 #ifndef DEBUG_MODE
-    client.print(senddata); //向服务器反馈信息
+    client.println(msgbuf); //向服务器反馈信息
 #endif
 
-    last_send = millis();     //保存最后发送时间
-    Serial.println(senddata); //语句同时发送的串口
+    last_send = millis(); //保存最后发送时间
+    msg(msgbuf);          //语句同时发送的串口
 }
 
 void loop()
 {
+    //尝试连接本地调试监控服务器
+    if (!clientDBG.connected())
+        clientDBG.connect(hostDBG, portDBG);
+
     //如果尚未建立APRS服务器连接
     if (!client.connected())
     {
-        Serial.println(F("APRS服务器未连接，正在连接..."));
-        if (client.connect(host, port))
+        msg("APRS服务器未连接，正在连接...");
+        if (client.connect(host, port)) //连接APRS服务器成功
         {
             last_recv = millis();
-            Serial.println(F("APRS服务器已连接"));
+            msg("APRS服务器已连接");
         }
         else
         {
-            Serial.println(F("APRS服务器连接失败，稍后重试"));
+            msg("APRS服务器连接失败，稍后重试");
             delay(5000);
         }
     }
@@ -231,7 +259,7 @@ void loop()
     {
         auth = false;
         client.stop();
-        Serial.println(F("APRS服务器数据接收超时，已断开"));
+        msg("APRS服务器数据接收超时，已断开");
     }
 
     //如果缓冲区字符串大于0
@@ -239,25 +267,22 @@ void loop()
     {
         last_recv = millis();                       //更新最后接收数据时间
         String line = client.readStringUntil('\n'); //获取字符串
-        Serial.println(line);                       //把字符串传给串口
+        msg(line);                                  //把字符串传给串口
 
         if (auth == false)
         {
-            if (line.indexOf("javAPRSSrvr") != -1) // !=-1含有 ==-1不含有
+            if (line.indexOf("aprsc") != -1) //语句含有 aprsc
             {
-                Serial.println("javAPRSSrvr");
-            }
-            else if (line.indexOf("aprsc") != -1)
-            {
-                Serial.println(F("正在登录ARPS服务器..."));
-                Serial.println(logininfo);
-                client.print(logininfo); //向服务器反馈登录信息
+                msg("正在登录ARPS服务器...");
+                String loginmsg = "user BG4UVR-10 pass 21410 vers esp-01s 0.1 filter m/10"; //APRS登录命令
+                client.println(loginmsg);                                                   //发送登录语句
+                msg(loginmsg);
             }
             else if (line.indexOf("verified") != -1)
             {
                 auth = true; //验证成功
-                send_data();
-                Serial.println(F("APRS服务器登录验证已通过"));
+                msg("APRS服务器登录验证已通过");
+                send_data(); //发送登录后第一个数据包
             }
         }
     }
