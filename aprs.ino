@@ -138,6 +138,7 @@ void setup()
 #endif
 
     Serial.println("正在初始化BMP280传感器...");
+    Wire.begin(2, 0); //重定义I2C端口
     if (!bmp.begin(BMP280_ADDRESS_ALT))
     {
         Serial.println(F("未找到BMP280传感器，请检查接线以及设置正确i2c地址(0x76 或 0x77)。"));
