@@ -1,9 +1,13 @@
 // ESP8266 APRS 气象站
 
-//#define DEBUG_MODE  //调试模式时不把语句发往服务器
-//#define HUMIDITY  //不使用湿度时注释掉本句（ESP-01S没有多余IO使用湿度）
+#define DEBUG_MODE //调试模式时不把语句发往服务器
+
+#ifdef DEBUG_MODE
+#define SEND_INTERVAL 10 * 1000 //调试状态发送数据间隔（毫秒）
+#else
 #define SEND_INTERVAL 5 * 60 * 1000 //发送数据间隔（毫秒）
-#define RECV_INTERVAL 30 * 1000     //接收心跳包的间隔， aprsc 2.1.5 服务器大约为20秒
+#endif
+#define RECV_INTERVAL 30 * 1000 //接收心跳包的间隔， aprsc 2.1.5 服务器大约为20秒
 
 #include <ESP8266WiFi.h>
 #include <Wire.h>
@@ -11,10 +15,7 @@
 #include <WiFiManager.h>
 #include <ArduinoOTA.h>
 #include <Adafruit_BMP280.h>
-
-#ifdef HUMIDITY
-#include "DHTesp.h"
-#endif
+#include <DHTesp.h>
 
 WiFiClient client;                    //初始化WiFiclient实例
 const char *host = "china.aprs2.net"; //APRS服务器地址
@@ -25,10 +26,7 @@ char senddata[150] = {0};                                         //APRS数据�
 bool auth = false;                                                //APRS验证状态
 
 Adafruit_BMP280 bmp; //初始化BMP280实例
-
-#ifdef HUMIDITY
-DHTesp dht; //DHT11实例
-#endif
+DHTesp dht;          //DHT11实例
 
 uint32_t last_send;
 uint32_t last_recv;
@@ -133,9 +131,7 @@ void setup()
     WiFisetup();          //自动配网
     Otasetup();           //OTA更新
 
-#ifdef HUMIDITY
     dht.setup(5, DHTesp::DHT11); // Connect DHT sensor to GPIO 5
-#endif
 
     Serial.println("正在初始化BMP280传感器...");
     Wire.begin(2, 0); //重定义I2C端口
@@ -160,33 +156,21 @@ void setup()
 //发送数据
 void send_data()
 {
-#ifdef HUMIDITY
     int humidity = dht.getHumidity();
     if (humidity > 100)
         humidity = 0;
-#endif
 
     float temperature = bmp.readTemperature();
     float pressure = bmp.readPressure();
 
-#ifdef HUMIDITY
     Serial.printf("湿度：%d\t温度：%0.2f\t气压：%0.2f\r\n", humidity, temperature, pressure);
-#else
-    Serial.printf("温度：%0.2f\t气压：%0.2f\r\n", temperature, pressure);
-#endif
 
     int temperaturef = temperature * 9 / 5 + 32; //转换成华氏度
     int pressure_int = pressure / 10;            //把气压浮点数的Pa值转换成0.1hPa的整形数值
 
-#ifdef HUMIDITY
     snprintf(senddata, sizeof(senddata),
-             "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h02db%05d send_cnt:%d, runtime:%ds\r\n",
+             "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h%02db%05d send_cnt:%d, runtime:%ds\r\n",
              temperaturef, humidity, pressure_int, ++data_cnt, millis() / (1000));
-#else
-    snprintf(senddata, sizeof(senddata),
-             "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h50b%05d send_cnt:%d, runtime:%ds\r\n",
-             temperaturef, pressure_int, ++data_cnt, millis() / (1000));
-#endif
 
 #ifndef DEBUG_MODE
     client.print(senddata); //向服务器反馈信息
