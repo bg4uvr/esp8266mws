@@ -25,9 +25,6 @@ const char *logininfo =
 char senddata[150] = {0};                                         //APRS数据缓存
 bool auth = false;                                                //APRS验证状态
 
-Adafruit_BMP280 bmp; //初始化BMP280实例
-DHTesp dht;          //DHT11实例
-
 uint32_t last_send;
 uint32_t last_recv;
 uint32_t data_cnt;
@@ -125,22 +122,15 @@ void Otasetup()
     Serial.println(WiFi.localIP());
 }
 
-void setup()
+bool read_bmp280(float *temperature, float *pressure)
 {
-    Serial.begin(115200); //配置串口
-    WiFisetup();          //自动配网
-    Otasetup();           //OTA更新
-
-    dht.setup(5, DHTesp::DHT11); // Connect DHT sensor to GPIO 5
-
+    Adafruit_BMP280 bmp; //初始化BMP280实例
     Serial.println("正在初始化BMP280传感器...");
     Wire.begin(2, 0); //重定义I2C端口
     if (!bmp.begin(BMP280_ADDRESS_ALT))
     {
         Serial.println(F("未找到BMP280传感器，请检查接线以及设置正确i2c地址(0x76 或 0x77)。"));
-        Serial.println(F("系统当前已停止..."));
-        while (1)
-            ArduinoOTA.handle(); //系统停止执行，只扫描OTA任务
+        return 0;
     }
 
     //设置BMP280采样参数
@@ -151,32 +141,72 @@ void setup()
                     Adafruit_BMP280::STANDBY_MS_500);
 
     Serial.println("BMP280传感器初始化成功");
+    *temperature = bmp.readTemperature();
+    *pressure = bmp.readPressure();
+    return 1;
+}
+
+bool read_dht11(float *humidity)
+{
+    DHTesp dht;                  //DHT11实例
+    dht.setup(5, DHTesp::DHT11); // Connect DHT sensor to GPIO 5
+    *humidity = dht.getHumidity();
+    if (*humidity > 100 || *humidity < 0)
+        return 0;
+    else
+        return 1;
+}
+
+void setup()
+{
+    Serial.begin(115200); //配置串口
+    WiFisetup();          //自动配网
+    Otasetup();           //OTA更新
 }
 
 //发送数据
 void send_data()
 {
-    int humidity = dht.getHumidity();
-    if (humidity > 100)
-        humidity = 0;
+    float humidity, temperatureBMP, pressure;   //保存湿度、温度、气压的浮点变量
+    int humidityINT, temperatureF, pressureINT; //保存湿度、华氏温度、气压的整数变量
 
-    float temperature = bmp.readTemperature();
-    float pressure = bmp.readPressure();
+    bool dhtRES = read_dht11(&humidity);                   //读取DHT11湿度
+    bool bmpRES = read_bmp280(&temperatureBMP, &pressure); //读取BMP280
+    if (dhtRES)                                            //DHT11读取成功
+    {
+        Serial.printf("DHT11湿度：%0.2f\r\n", humidity);
+        humidityINT = humidity;
+    }
+    else //DHT11读取失败
+    {
+        Serial.println("DHT11读取失败");
+        humidityINT = 0; //湿度值设为0
+    }
 
-    Serial.printf("湿度：%d\t温度：%0.2f\t气压：%0.2f\r\n", humidity, temperature, pressure);
+    if (bmpRES) //BMP280读取成功
+    {
+        Serial.printf("BMP280温度：%0.2f\tBMP280气压%0.2f\r\n", temperatureBMP, pressure);
+        temperatureF = temperatureBMP * 9 / 5 + 32; //转换成华氏度
+        pressureINT = pressure / 10;                //把气压浮点数的Pa值转换成0.1hPa的整形数值
+    }
+    else //BMP280读取失败
+    {
+        Serial.println("BMP280读取失败");
+        temperatureF = 0; //温度值清零
+        pressureINT = 0;  //气压值清零
+    }
 
-    int temperaturef = temperature * 9 / 5 + 32; //转换成华氏度
-    int pressure_int = pressure / 10;            //把气压浮点数的Pa值转换成0.1hPa的整形数值
-
+    //格式化发送语句
     snprintf(senddata, sizeof(senddata),
              "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h%02db%05d send_cnt:%d, runtime:%ds\r\n",
-             temperaturef, humidity, pressure_int, ++data_cnt, millis() / (1000));
+             temperatureF, humidityINT, pressureINT, ++data_cnt, millis() / (1000));
 
 #ifndef DEBUG_MODE
     client.print(senddata); //向服务器反馈信息
 #endif
-    last_send = millis();
-    Serial.println(senddata);
+
+    last_send = millis();     //保存最后发送时间
+    Serial.println(senddata); //语句同时发送的串口
 }
 
 void loop()
