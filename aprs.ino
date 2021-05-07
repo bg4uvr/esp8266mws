@@ -1,6 +1,6 @@
 // ESP8266 APRS 气象站
 
-#define DEBUG_MODE //调试模式时不把语句发往服务器
+//#define DEBUG_MODE //调试模式时不把语句发往服务器
 
 #ifdef DEBUG_MODE
 #define SEND_INTERVAL 10 * 1000 //调试状态发送数据间隔（毫秒）
@@ -17,6 +17,9 @@
 #include <Adafruit_BMP280.h>
 #include <DHTesp.h>
 
+uint8_t sysState;            //系统状态
+int ledonDelay, ledoffDelay; //灯亮灭时长
+
 WiFiClient client;                    //初始化WiFiclient实例
 const char *host = "china.aprs2.net"; //APRS服务器地址
 const int port = 14580;               //APRS服务器端口
@@ -26,9 +29,8 @@ uint32_t last_send;
 uint32_t last_recv;
 uint32_t data_cnt;
 
-WiFiClient clientDBG;                  //初始化调试用WiFiclient实例
-const char *hostDBG = "192.168.1.125"; //APRS服务器地址
-const int portDBG = 14580;             //APRS服务器端口
+WiFiServer server(14580); //初始化调试用WiFiserver实例
+WiFiClient clientDBG;
 
 //自动配网
 void WiFisetup()
@@ -42,7 +44,7 @@ void WiFisetup()
 
     if (!wifiManager.autoConnect("APRS_SET"))
     {
-        Serial.println(F("Failed to connect. Reset and try again..."));
+        //Serial.println(F("Failed to connect. Reset and try again..."));
         delay(3000);
         ESP.reset();
         //重置并重试
@@ -50,11 +52,11 @@ void WiFisetup()
     }
 
     //if you get here you have connected to the WiFi
-    Serial.println("WiFi Connected!");
-    Serial.print("IP ssid: ");
-    Serial.println(WiFi.SSID());
-    Serial.print("IP addr: ");
-    Serial.println(WiFi.localIP());
+    //Serial.println("WiFi Connected!");
+    //Serial.print("IP ssid: ");
+    //Serial.println(WiFi.SSID());
+    //Serial.print("IP addr: ");
+    //Serial.println(WiFi.localIP());
 }
 
 //OTA更新
@@ -86,48 +88,48 @@ void Otasetup()
         }
 
         // NOTE: if updating FS this would be the place to unmount FS using FS.end()
-        Serial.println("Start updating " + type);
+        //Serial.println("Start updating " + type);
     });
     ArduinoOTA.onEnd([]() {
-        Serial.println("\nEnd");
+        //Serial.println("\nEnd");
     });
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+        //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
     });
     ArduinoOTA.onError([](ota_error_t error) {
-        Serial.printf("Error[%u]: ", error);
+        //Serial.printf("Error[%u]: ", error);
         if (error == OTA_AUTH_ERROR)
         {
-            Serial.println("Auth Failed");
+            //Serial.println("Auth Failed");
         }
         else if (error == OTA_BEGIN_ERROR)
         {
-            Serial.println("Begin Failed");
+            //Serial.println("Begin Failed");
         }
         else if (error == OTA_CONNECT_ERROR)
         {
-            Serial.println("Connect Failed");
+            //Serial.println("Connect Failed");
         }
         else if (error == OTA_RECEIVE_ERROR)
         {
-            Serial.println("Receive Failed");
+            //Serial.println("Receive Failed");
         }
         else if (error == OTA_END_ERROR)
         {
-            Serial.println("End Failed");
+            //Serial.println("End Failed");
         }
     });
     ArduinoOTA.begin();
-    Serial.println("Ready");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
+    //Serial.println("Ready");
+    //Serial.print("IP address: ");
+    //Serial.println(WiFi.localIP());
 }
 
 bool read_bmp280(float *temperature, float *pressure)
 {
     Adafruit_BMP280 bmp; //初始化BMP280实例
     //Serial.println("正在初始化BMP280传感器...");
-    Wire.begin(2, 0); //重定义I2C端口
+    Wire.begin(3, 0); //重定义I2C端口
     if (!bmp.begin(BMP280_ADDRESS_ALT))
     {
         //Serial.println(F("未找到BMP280传感器，请检查接线以及设置正确i2c地址(0x76 或 0x77)。"));
@@ -150,7 +152,7 @@ bool read_bmp280(float *temperature, float *pressure)
 bool read_dht11(float *humidity)
 {
     DHTesp dht;                  //DHT11实例
-    dht.setup(2, DHTesp::DHT11); // Connect DHT sensor to GPIO 2
+    dht.setup(1, DHTesp::DHT11); // Connect DHT sensor to GPIO 1, TX0
 
     *humidity = dht.getHumidity();
 
@@ -162,16 +164,25 @@ bool read_dht11(float *humidity)
 
 void setup()
 {
-    Serial.begin(115200,SERIAL_8N1,SERIAL_TX_ONLY); //配置串口
-    WiFisetup();          //自动配网
-    Otasetup();           //OTA更新
+    pinMode(2, OUTPUT);           //GPIO为LED
+    digitalWrite(LED_BUILTIN, 0); //点亮
+    sysState = 1;
+
+    //Serial.begin(115200,SERIAL_8N1,SERIAL_TX_ONLY); //配置串口
+    WiFisetup(); //自动配网
+    Otasetup();  //OTA更新
+    sysState = 2;
+
+    server.begin();
 }
 
 void msg(String msg)
 {
-    Serial.println(msg);
+    //Serial.println(msg);
     if (clientDBG.connected())
         clientDBG.println(msg);
+    else
+        clientDBG.stop();
 }
 
 //发送数据
@@ -185,7 +196,7 @@ void send_data()
     bool bmpRES = read_bmp280(&temperatureBMP, &pressure); //读取BMP280
     bool dhtRES = read_dht11(&humidity);                   //读取DHT11湿度
 
-    if (dhtRES)                                            //DHT11读取成功
+    if (dhtRES) //DHT11读取成功
     {
         snprintf(msgbuf, sizeof(msgbuf), "DHT11湿度：%0.2f", humidity);
         msg(msgbuf);
@@ -238,9 +249,10 @@ void send_data()
 
 void loop()
 {
-    //尝试连接本地调试监控服务器
     if (!clientDBG.connected())
-        clientDBG.connect(hostDBG, portDBG);
+    {
+        clientDBG = server.available();
+    }
 
     //如果尚未建立APRS服务器连接
     if (!client.connected())
@@ -250,6 +262,7 @@ void loop()
         {
             last_recv = millis();
             msg("APRS服务器已连接");
+            sysState = 3;
         }
         else
         {
@@ -263,6 +276,7 @@ void loop()
         auth = false;
         client.stop();
         msg("APRS服务器数据接收超时，已断开");
+        sysState = 2;
     }
 
     //如果缓冲区字符串大于0
@@ -285,6 +299,7 @@ void loop()
             {
                 auth = true; //验证成功
                 msg("APRS服务器登录验证已通过");
+                sysState = 4;
                 send_data(); //发送登录后第一个数据包
             }
         }
@@ -296,4 +311,31 @@ void loop()
 
     //扫描OTA任务
     ArduinoOTA.handle();
+
+    switch (sysState)
+    {
+    case 0:
+    case 1:
+        ledonDelay = 1000;
+        ledoffDelay = 0;
+        break;
+    case 2: //WIFI已连接
+        ledonDelay = 200;
+        ledoffDelay = 200;
+        break;
+    case 3: //APRS服务器已连接
+        ledonDelay = 500;
+        ledoffDelay = 500;
+        break;
+    case 4: //已登录验证
+        ledonDelay = 50;
+        ledoffDelay = 950;
+    default:
+
+        break;
+    }
+    digitalWrite(LED_BUILTIN, 0);
+    delay(ledonDelay);
+    digitalWrite(LED_BUILTIN, 1);
+    delay(ledoffDelay);
 }
