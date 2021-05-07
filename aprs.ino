@@ -3,7 +3,7 @@
 //#define DEBUG_MODE //调试模式时不把语句发往服务器
 
 #ifdef DEBUG_MODE
-#define SEND_INTERVAL 10 * 1000 //调试状态发送数据间隔（毫秒）
+#define SEND_INTERVAL 5 * 1000 //调试状态发送数据间隔（毫秒）
 #else
 #define SEND_INTERVAL 5 * 60 * 1000 //发送数据间隔（毫秒）
 #endif
@@ -149,6 +149,30 @@ bool read_bmp280(float *temperature, float *pressure)
     return 1;
 }
 
+//平滑滤波
+float filter(float data)
+{
+#define FILTER_NUM 10
+    static float buf[FILTER_NUM]; //数据缓存队列
+    static uint8_t count;         //已缓存的数据个数
+
+    if (count < FILTER_NUM) //队列未满时
+    {
+        buf[count++] = data; //存储数据
+    }
+    else //队列已满
+    {
+        for (uint8_t i = 0; i < FILTER_NUM - 1; i++) //数据向队列前移动
+            buf[i] = buf[i + 1];
+        buf[FILTER_NUM-1] = data;
+        count = FILTER_NUM;
+    }
+    float res = 0;
+    for (uint8_t i = 0; i < count; i++)
+        res += buf[i];
+    return (res / count);
+}
+
 bool read_dht11(float *humidity)
 {
     DHTesp dht;                  //DHT11实例
@@ -157,7 +181,9 @@ bool read_dht11(float *humidity)
     *humidity = dht.getHumidity();
 
     if (dht.getStatus() == dht.ERROR_NONE)
+    {
         return 1;
+    }
     else
         return 0;
 }
@@ -201,7 +227,7 @@ void send_data()
     {
         snprintf(msgbuf, sizeof(msgbuf), "DHT11湿度：%0.2f", humidity);
         msg(msgbuf);
-        humidityINT = humidity;
+        humidityINT = filter(humidity); //滤波读取湿度
     }
     else //DHT11读取失败
     {
