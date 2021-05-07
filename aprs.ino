@@ -7,7 +7,7 @@
 #else
 #define SEND_INTERVAL 5 * 60 * 1000 //发送数据间隔（毫秒）
 #endif
-#define RECV_INTERVAL 30 * 1000 //接收心跳包的间隔， aprsc 2.1.5 服务器大约为20秒
+#define RECV_INTERVAL 60 * 1000 //接收心跳包的间隔， aprsc 2.1.5 服务器大约为20秒
 
 #define FILTER_NUM 5 //湿度滤波次数
 
