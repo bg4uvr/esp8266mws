@@ -150,17 +150,19 @@ bool read_bmp280(float *temperature, float *pressure)
 bool read_dht11(float *humidity)
 {
     DHTesp dht;                  //DHT11实例
-    dht.setup(5, DHTesp::DHT11); // Connect DHT sensor to GPIO 5
+    dht.setup(2, DHTesp::DHT11); // Connect DHT sensor to GPIO 2
+
     *humidity = dht.getHumidity();
-    if (*humidity > 100 || *humidity < 0)
-        return 0;
-    else
+
+    if (dht.getStatus() == dht.ERROR_NONE)
         return 1;
+    else
+        return 0;
 }
 
 void setup()
 {
-    Serial.begin(115200); //配置串口
+    Serial.begin(115200,SERIAL_8N1,SERIAL_TX_ONLY); //配置串口
     WiFisetup();          //自动配网
     Otasetup();           //OTA更新
 }
@@ -180,8 +182,9 @@ void send_data()
     float humidity, temperatureBMP, pressure;   //保存湿度、温度、气压的浮点变量
     int humidityINT, temperatureF, pressureINT; //保存湿度、华氏温度、气压的整数变量
 
-    bool dhtRES = read_dht11(&humidity);                   //读取DHT11湿度
     bool bmpRES = read_bmp280(&temperatureBMP, &pressure); //读取BMP280
+    bool dhtRES = read_dht11(&humidity);                   //读取DHT11湿度
+
     if (dhtRES)                                            //DHT11读取成功
     {
         snprintf(msgbuf, sizeof(msgbuf), "DHT11湿度：%0.2f", humidity);
