@@ -9,6 +9,8 @@
 #endif
 #define RECV_INTERVAL 30 * 1000 //接收心跳包的间隔， aprsc 2.1.5 服务器大约为20秒
 
+#define FILTER_NUM 5 //湿度滤波次数
+
 #include <ESP8266WiFi.h>
 #include <Wire.h>
 #include <Time.h>
@@ -152,7 +154,6 @@ bool read_bmp280(float *temperature, float *pressure)
 //平滑滤波
 float filter(float data)
 {
-#define FILTER_NUM 10
     static float buf[FILTER_NUM]; //数据缓存队列
     static uint8_t count;         //已缓存的数据个数
 
@@ -164,7 +165,7 @@ float filter(float data)
     {
         for (uint8_t i = 0; i < FILTER_NUM - 1; i++) //数据向队列前移动
             buf[i] = buf[i + 1];
-        buf[FILTER_NUM-1] = data;
+        buf[FILTER_NUM - 1] = data;
         count = FILTER_NUM;
     }
     float res = 0;
