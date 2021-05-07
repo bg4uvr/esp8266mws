@@ -176,12 +176,13 @@ void setup()
     server.begin();
 }
 
+//调试消息显示
 void msg(String msg)
 {
     //Serial.println(msg);
-    if (clientDBG.connected())
-        clientDBG.println(msg);
-    else
+    if (clientDBG.connected())  //如果调试连接已连接
+        clientDBG.println(msg); //向连接发送调试消息
+    else                        //如果没有连接，则关闭本连接
         clientDBG.stop();
 }
 
@@ -247,8 +248,39 @@ void send_data()
     msg(msgbuf);          //语句同时发送的串口
 }
 
+void led()
+{
+    switch (sysState)
+    {
+    case 0:
+    case 1:
+        ledonDelay = 1000;
+        ledoffDelay = 0;
+        break;
+    case 2: //WIFI已连接
+        ledonDelay = 200;
+        ledoffDelay = 200;
+        break;
+    case 3: //APRS服务器已连接
+        ledonDelay = 500;
+        ledoffDelay = 500;
+        break;
+    case 4: //已登录验证
+        ledonDelay = 50;
+        ledoffDelay = 950;
+    default:
+
+        break;
+    }
+    digitalWrite(LED_BUILTIN, 0);
+    delay(ledonDelay);
+    digitalWrite(LED_BUILTIN, 1);
+    delay(ledoffDelay);
+}
+
 void loop()
 {
+    //如果还没有调试连接，读取服务器连接状态
     if (!clientDBG.connected())
     {
         clientDBG = server.available();
@@ -309,33 +341,9 @@ void loop()
     if (auth == true && millis() - last_send >= SEND_INTERVAL)
         send_data();
 
+    //led状态显示
+    led();
+
     //扫描OTA任务
     ArduinoOTA.handle();
-
-    switch (sysState)
-    {
-    case 0:
-    case 1:
-        ledonDelay = 1000;
-        ledoffDelay = 0;
-        break;
-    case 2: //WIFI已连接
-        ledonDelay = 200;
-        ledoffDelay = 200;
-        break;
-    case 3: //APRS服务器已连接
-        ledonDelay = 500;
-        ledoffDelay = 500;
-        break;
-    case 4: //已登录验证
-        ledonDelay = 50;
-        ledoffDelay = 950;
-    default:
-
-        break;
-    }
-    digitalWrite(LED_BUILTIN, 0);
-    delay(ledonDelay);
-    digitalWrite(LED_BUILTIN, 1);
-    delay(ledoffDelay);
 }
