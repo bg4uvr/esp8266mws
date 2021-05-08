@@ -2,6 +2,6 @@
     "board": "esp8266:esp8266:generic",
     "port": "192.168.1.116",
     "sketch": "aprs.ino",
-    "output": "D:/Arduino/build",
+    "output": "D:/Arduino/build/aprs",
     "configuration": "xtal=80,vt=flash,exception=legacy,ssl=all,ResetMethod=nodemcu,CrystalFreq=26,FlashFreq=40,FlashMode=dout,eesz=1M,led=2,sdk=nonosdk_190703,ip=lm2f,dbg=Disabled,lvl=None____,UploadTool=esptool,wipe=none,baud=921600"
 }
