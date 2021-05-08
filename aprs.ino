@@ -1,6 +1,7 @@
 // ESP8266 APRS 气象站
 
-//#define DEBUG_MODE //调试模式时不把语句发往服务器
+#define DEBUG_MODE //调试模式时不把语句发往服务器
+#define USEOTA     //使用OTA
 
 #ifdef DEBUG_MODE
 #define SEND_INTERVAL 5 * 1000 //调试状态发送数据间隔（毫秒）
@@ -46,7 +47,7 @@ void WiFisetup()
 
     if (!wifiManager.autoConnect("APRS_SET"))
     {
-        //Serial.println(F("Failed to connect. Reset and try again..."));
+        Serial.println(F("Failed to connect. Reset and try again..."));
         delay(3000);
         ESP.reset();
         //重置并重试
@@ -54,13 +55,14 @@ void WiFisetup()
     }
 
     //if you get here you have connected to the WiFi
-    //Serial.println("WiFi Connected!");
-    //Serial.print("IP ssid: ");
-    //Serial.println(WiFi.SSID());
-    //Serial.print("IP addr: ");
-    //Serial.println(WiFi.localIP());
+    Serial.println("WiFi Connected!");
+    Serial.print("IP ssid: ");
+    Serial.println(WiFi.SSID());
+    Serial.print("IP addr: ");
+    Serial.println(WiFi.localIP());
 }
 
+#ifdef USEOTA
 //OTA更新
 void Otasetup()
 {
@@ -90,51 +92,52 @@ void Otasetup()
         }
 
         // NOTE: if updating FS this would be the place to unmount FS using FS.end()
-        //Serial.println("Start updating " + type);
+        Serial.println("Start updating " + type);
     });
     ArduinoOTA.onEnd([]() {
-        //Serial.println("\nEnd");
+        Serial.println("\nEnd");
     });
     ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-        //Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+        Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
     });
     ArduinoOTA.onError([](ota_error_t error) {
-        //Serial.printf("Error[%u]: ", error);
+        Serial.printf("Error[%u]: ", error);
         if (error == OTA_AUTH_ERROR)
         {
-            //Serial.println("Auth Failed");
+            Serial.println("Auth Failed");
         }
         else if (error == OTA_BEGIN_ERROR)
         {
-            //Serial.println("Begin Failed");
+            Serial.println("Begin Failed");
         }
         else if (error == OTA_CONNECT_ERROR)
         {
-            //Serial.println("Connect Failed");
+            Serial.println("Connect Failed");
         }
         else if (error == OTA_RECEIVE_ERROR)
         {
-            //Serial.println("Receive Failed");
+            Serial.println("Receive Failed");
         }
         else if (error == OTA_END_ERROR)
         {
-            //Serial.println("End Failed");
+            Serial.println("End Failed");
         }
     });
     ArduinoOTA.begin();
-    //Serial.println("Ready");
-    //Serial.print("IP address: ");
-    //Serial.println(WiFi.localIP());
+    Serial.println("Ready");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
 }
+#endif
 
 bool read_bmp280(float *temperature, float *pressure)
 {
     Adafruit_BMP280 bmp; //初始化BMP280实例
-    //Serial.println("正在初始化BMP280传感器...");
-    Wire.begin(3, 0); //重定义I2C端口
+    Serial.println("正在初始化BMP280传感器...");
+    //Wire.begin(3, 0); //重定义I2C端口
     if (!bmp.begin(BMP280_ADDRESS_ALT))
     {
-        //Serial.println(F("未找到BMP280传感器，请检查接线以及设置正确i2c地址(0x76 或 0x77)。"));
+        Serial.println(F("未找到BMP280传感器，请检查接线以及设置正确i2c地址(0x76 或 0x77)。"));
         return 0;
     }
 
@@ -145,7 +148,7 @@ bool read_bmp280(float *temperature, float *pressure)
                     Adafruit_BMP280::FILTER_X16,
                     Adafruit_BMP280::STANDBY_MS_500);
 
-    //Serial.println("BMP280传感器初始化成功");
+    Serial.println("BMP280传感器初始化成功");
     *temperature = bmp.readTemperature();
     *pressure = bmp.readPressure();
     return 1;
@@ -177,7 +180,7 @@ float filter(float data)
 bool read_dht11(float *humidity)
 {
     DHTesp dht;                  //DHT11实例
-    dht.setup(1, DHTesp::DHT11); // Connect DHT sensor to GPIO 1, TX0
+    dht.setup(5, DHTesp::DHT11); // Connect DHT sensor to GPIO5
 
     *humidity = dht.getHumidity();
 
@@ -195,9 +198,13 @@ void setup()
     digitalWrite(LED_BUILTIN, 0); //点亮
     sysState = 1;
 
-    //Serial.begin(115200,SERIAL_8N1,SERIAL_TX_ONLY); //配置串口
-    WiFisetup(); //自动配网
-    Otasetup();  //OTA更新
+    Serial.begin(115200); //配置串口
+    WiFisetup();          //自动配网
+
+#ifdef USEOTA
+    Otasetup(); //OTA更新
+#endif
+
     sysState = 2;
 
     server.begin();
@@ -206,7 +213,7 @@ void setup()
 //调试消息显示
 void msg(String msg)
 {
-    //Serial.println(msg);
+    Serial.println(msg);
     if (clientDBG.connected())  //如果调试连接已连接
         clientDBG.println(msg); //向连接发送调试消息
     else                        //如果没有连接，则关闭本连接
@@ -313,9 +320,11 @@ void loop()
         clientDBG = server.available();
     }
 
+#ifndef DEBUG_MODE
     //如果尚未建立APRS服务器连接
     if (!client.connected())
     {
+        auth = false;
         msg("APRS服务器未连接，正在连接...");
         if (client.connect(host, port)) //连接APRS服务器成功
         {
@@ -350,7 +359,7 @@ void loop()
             if (line.indexOf("aprsc") != -1) //语句含有 aprsc
             {
                 msg("正在登录ARPS服务器...");
-                String loginmsg = "user BG4UVR-10 pass 21410 vers esp-01s 0.1 filter m/10"; //APRS登录命令
+                String loginmsg = "user BG4UVR-11 pass 21410 vers esp-01s 0.1 filter m/10"; //APRS登录命令
                 client.println(loginmsg);                                                   //发送登录语句
                 msg(loginmsg);
             }
@@ -367,10 +376,16 @@ void loop()
     //在已验证情况下，每间隔定时周期，发送一次数据
     if (auth == true && millis() - last_send >= SEND_INTERVAL)
         send_data();
+#else
+    if (millis() - last_send >= SEND_INTERVAL)
+        send_data(); //调试模式不登录服务器直接测试数据
+#endif
 
     //led状态显示
     led();
 
+#ifdef USEOTA
     //扫描OTA任务
     ArduinoOTA.handle();
+#endif
 }
