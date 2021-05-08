@@ -113,7 +113,7 @@ void send_data()
     else //DHT11读取失败
     {
         Serial.println("DHT11读取失败");
-        humidityINT = 0; //湿度值设为0
+        humidityINT = 50; //湿度值设为50
     }
 
     if (bmpRES) //BMP280读取成功
@@ -128,8 +128,8 @@ void send_data()
     else //BMP280读取失败
     {
         Serial.println("BMP280读取失败");
-        temperatureF = 0; //温度值清零
-        pressureINT = 0;  //气压值清零
+        temperatureF = 25;   //温度值设置为25度
+        pressureINT = 10132; //气压值设置为10132
     }
 
     snprintf(msgbuf, sizeof(msgbuf),
