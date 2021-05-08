@@ -1,6 +1,6 @@
 // ESP8266 APRS 气象站
 
-//#define DEBUG_MODE //调试模式时不把语句发往服务器
+#define DEBUG_MODE //调试模式时不把语句发往服务器
 
 #include <ESP8266WiFi.h>
 #include <Wire.h>
@@ -29,6 +29,7 @@ void WiFisetup()
     if (!wifiManager.autoConnect("APRS_SET"))
     {
         Serial.println(F("Failed to connect. Reset and try again..."));
+
         delay(3000);
         ESP.reset();
         //重置并重试
@@ -50,49 +51,40 @@ bool read_bmp280(float *temperature, float *pressure)
     Wire.begin(0, 5); //重定义I2C端口
     if (!bmp.begin(BMP280_ADDRESS_ALT))
     {
-        Serial.println(F("未找到BMP280传感器，请检查接线以及设置正确i2c地址(0x76 或 0x77)。"));
         return false;
     }
+    Serial.println("BMP280传感器初始化成功");
 
     //设置BMP280采样参数
-    bmp.setSampling(Adafruit_BMP280::MODE_NORMAL,
-                    Adafruit_BMP280::SAMPLING_X2,
-                    Adafruit_BMP280::SAMPLING_X16,
+    bmp.setSampling(Adafruit_BMP280::MODE_FORCED, //FORCE模式读完自动转换回sleep模式？
+                    Adafruit_BMP280::SAMPLING_X1,
+                    Adafruit_BMP280::SAMPLING_X4,
                     Adafruit_BMP280::FILTER_X16,
-                    Adafruit_BMP280::STANDBY_MS_500);
-
-    Serial.println("BMP280传感器初始化成功");
+                    Adafruit_BMP280::STANDBY_MS_1);
+    Serial.println("正在读取BMP280传感器");
     *temperature = bmp.readTemperature();
     *pressure = bmp.readPressure();
-    //设置BMP280采样参数
-    bmp.setSampling(Adafruit_BMP280::MODE_SLEEP,
-                    Adafruit_BMP280::SAMPLING_X2,
-                    Adafruit_BMP280::SAMPLING_X16,
-                    Adafruit_BMP280::FILTER_X16,
-                    Adafruit_BMP280::STANDBY_MS_500);    
-
+    Serial.println("BMP280读取完成");
     return true;
 }
 
 bool read_dht11(float *humidity)
 {
-    DHTesp dht;                   //DHT11实例
+    DHTesp dht; //DHT11实例
+    Serial.println("正在初始化DHT11传感器...");
     dht.setup(14, DHTesp::DHT11); // Connect DHT sensor to GPIO5
-
-    float temp = dht.getHumidity();
+    Serial.println("正在读取DHT11传感器");
+    *humidity = dht.getHumidity();
 
     if (dht.getStatus() == dht.ERROR_NONE)
     {
-        for (uint8_t i = 0; i < 2; i++)
-        {
-            delay(2000);
-            temp += dht.getHumidity();
-        }
-        *humidity = temp / 3;
+        Serial.println("DHT11读取成功");
         return true;
     }
     else
+    {
         return false;
+    }
 }
 
 //发送数据
@@ -108,9 +100,15 @@ void send_data()
 
     if (dhtRES) //DHT11读取成功
     {
+#ifdef DEBUG_MODE
         snprintf(msgbuf, sizeof(msgbuf), "DHT11湿度：%0.2f", humidity);
         Serial.println(msgbuf);
+#endif
         humidityINT = humidity; //湿度转换为整数
+        if (humidityINT > 100)  //限制范围1-99
+            humidityINT = 99;
+        if (humidity < 0)
+            humidityINT = 1;
     }
     else //DHT11读取失败
     {
@@ -120,8 +118,10 @@ void send_data()
 
     if (bmpRES) //BMP280读取成功
     {
+#ifdef DEBUG_MODE
         snprintf(msgbuf, sizeof(msgbuf), "BMP280温度：%0.2f\tBMP280气压%0.2f", temperatureBMP, pressure);
         Serial.println(msgbuf);
+#endif
         temperatureF = temperatureBMP * 9 / 5 + 32; //转换成华氏度
         pressureINT = pressure / 10;                //把气压浮点数的Pa值转换成0.1hPa的整形数值
     }
@@ -133,20 +133,18 @@ void send_data()
     }
 
     snprintf(msgbuf, sizeof(msgbuf),
-             "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h%02db%05d Battery:%0.2fV; Next report: after %d seconds.",
-             temperatureF, humidityINT, pressureINT, voltage, sleepsec);
+             "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h%02db%05d Battery:%0.2fV; Next report: after %dmins.",
+             temperatureF, humidityINT, pressureINT, voltage, sleepsec / 60);
 
 #ifndef DEBUG_MODE
-    client.println(msgbuf); //向服务器反馈信息
+    client.println(msgbuf); //数据发往服务器
 #endif
-
-    Serial.println(msgbuf); //语句同时发送的串口
+    Serial.println(msgbuf); //数据发往串口
 }
 
 bool loginAPRS()
 {
     uint8_t retrycnt = 0;
-
     Serial.println("正在连接APRS服务器");
     do
     {
@@ -172,7 +170,7 @@ bool loginAPRS()
                     {
                         Serial.println("APRS服务器登录成功");
                         send_data(); //发送数据
-                        Serial.println("本次数据发送完成");
+                        Serial.println("本次数据发送已完成");
                         return true;
                     }
                     if (++recv_cnt > 5)
@@ -197,37 +195,38 @@ bool loginAPRS()
     return false;
 }
 
+//根据电池电压计算休眠时间
 void calsleeptime()
 {
-    voltage = 4.2f * analogRead(A0) / 1024;
+    voltage = 4.2f * analogRead(A0) / 1024; //读取并计算电池电压
 
-    if (voltage > 3.3)
-        sleepsec = 300 + (4.2 - voltage) * 1500 / 0.9; //3.3V-4.2V，平均延时为1800秒 - 300秒（30分-5分)
+    if (voltage >= 3.6)
+        sleepsec = 300 + (4.2 - voltage) * 1500 / 0.9; //在3.6V-4.2V区间，均匀延时（30分-5分)
     else
-        sleepsec = 70 * 60; //延时70分钟，最长延时为71分钟
+        sleepsec = 60 * 60; //小于3.6V时延时60分钟
 }
 
 void setup()
 {
     pinMode(2, OUTPUT);           //GPIO为LED
     digitalWrite(LED_BUILTIN, 0); //点亮
-
+#ifdef DEBUG_MODE
     Serial.begin(115200); //配置串口
+#endif
 }
 
 void loop()
 {
-    calsleeptime();
-    if (voltage > 3.3)
+    calsleeptime();     //计算休眠时间
+    if (voltage >= 3.5) //电压不小于3.5V才处理
     {
-        WiFisetup(); //自动配网
-
-        if (loginAPRS() == false)
-            sleepsec = 30;
-        client.stop();
+        WiFisetup();              //自动配网连接WiFi
+        if (loginAPRS() == false) //登录APRS服务器并发送数据
+            sleepsec = 60;        //如果失败休眠1分钟后再试
+        client.stop();            //关闭已经创建的连接
     }
-    else
-        Serial.println("警告：当前电压低于3.3V，停止数据处理");
+    else //电压小于3.6V时不处理数据并休眠60分钟
+        Serial.println("警告：当前电压低于3.5V，停止数据处理");
     digitalWrite(LED_BUILTIN, 1); //关灯
 
 #ifdef DEBUG_MODE
