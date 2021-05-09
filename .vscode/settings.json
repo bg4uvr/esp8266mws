@@ -6,4 +6,7 @@
     "arduino.logLevel": "info",
     "explorer.confirmDelete": false,
     "editor.detectIndentation": false,
+    "files.associations": {
+        "*.tcc": "cpp"
+    },
 }

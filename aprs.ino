@@ -1,6 +1,6 @@
 // ESP8266 APRS 气象站
 
-#define DEBUG_MODE //调试模式时不把语句发往服务器
+//#define DEBUG_MODE //调试模式时不把语句发往服务器
 
 #include <ESP8266WiFi.h>
 #include <Wire.h>
@@ -8,6 +8,12 @@
 #include <WiFiManager.h>
 #include <Adafruit_BMP280.h>
 #include <DHTesp.h>
+#include <EEPROM.h>
+
+#define EEP_SIZE 4
+#define SYS_ADDR 0
+#define SYS_SLEEP 0x55
+#define SYS_RUN 0xaa
 
 const char *host = "china.aprs2.net"; //APRS服务器地址
 const int port = 14580;               //APRS服务器端口
@@ -15,6 +21,7 @@ const int port = 14580;               //APRS服务器端口
 WiFiClient client; //初始化WiFiclient实例
 float voltage;     //电池电压
 uint16_t sleepsec; //下次工作延时
+uint8_t runmode;   //当前运行状态
 
 //自动配网
 void WiFisetup()
@@ -132,9 +139,16 @@ void send_data()
         pressureINT = 10132; //气压值设置为10132
     }
 
-    snprintf(msgbuf, sizeof(msgbuf),
-             "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h%02db%05d Battery:%0.2fV; Next report: after %dmins.",
-             temperatureF, humidityINT, pressureINT, voltage, sleepsec / 60);
+    if (runmode == SYS_RUN)
+        snprintf(msgbuf, sizeof(msgbuf),
+                 "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h%02db%05d Battery:%0.2fV; Next report: %dmins later.",
+                 temperatureF, humidityINT, pressureINT, voltage, sleepsec / 60);
+    else if (runmode == SYS_SLEEP)
+        snprintf(msgbuf, sizeof(msgbuf),
+                 "BG4UVR-10>APZESP,qAC,:=3153.47N/12106.86E_c000s000g000t%03dr000p000h%02db%05d The battery is low and the system has gone to sleep until the voltage reaches 3.4V",
+                 temperatureF, humidityINT, pressureINT);
+    else
+        Serial.println("当前运行状态未知");
 
 #ifndef DEBUG_MODE
     client.println(msgbuf); //数据发往服务器
@@ -195,44 +209,73 @@ bool loginAPRS()
     return false;
 }
 
-//根据电池电压计算休眠时间
-void calsleeptime()
-{
-    voltage = 4.2f * analogRead(A0) / 1024; //读取并计算电池电压
-
-    if (voltage >= 3.6)
-        sleepsec = 300 + (4.2 - voltage) * 1500 / 0.9; //在3.6V-4.2V区间，均匀延时（30分-5分)
-    else
-        sleepsec = 60 * 60; //小于3.6V时延时60分钟
-}
-
 void setup()
 {
     pinMode(2, OUTPUT);           //GPIO为LED
     digitalWrite(LED_BUILTIN, 0); //点亮
+
 #ifdef DEBUG_MODE
     Serial.begin(115200); //配置串口
+#endif
+
+    voltage = 4.2f * analogRead(A0) / 1024; //读取并计算电池电压
+    Serial.printf("当前电压：%0.3fV\r\n", voltage);
+
+    //电压不小于3.2V才处理
+    if (voltage >= 3.2f)
+    {
+        EEPROM.begin(EEP_SIZE);          //初始化EEPROM
+        runmode = EEPROM.read(SYS_ADDR); //读取系统休眠状态
+
+        if (voltage >= 3.4f) //在3.4V-4.2V区间
+        {
+            //如果当前不是运行状态，更改为运行状态
+            if (runmode != SYS_RUN)
+            {
+                EEPROM.write(SYS_ADDR, SYS_RUN);
+                EEPROM.commit();
+                EEPROM.end(); //写入FLASH
+                runmode = SYS_RUN;
+            }
+
+            sleepsec = 300 + (4.2f - voltage) * 1500 / (4.2f - 3.4f); //计算休眠时间，均匀延时（30分-5分)
+
+            WiFisetup();              //自动配网连接WiFi
+            if (loginAPRS() == false) //登录APRS服务器并发送数据
+                sleepsec = 60;        //如果失败休眠1分钟后再试
+            client.stop();            //关闭已经创建的连接
+        }
+
+        else if (runmode != SYS_SLEEP) //如果电压低于3.4V，而且是不是休眠状态，转入休眠状态
+        {
+            EEPROM.write(SYS_ADDR, SYS_SLEEP);
+            EEPROM.commit();
+            EEPROM.end(); //写入FLASH
+            runmode = SYS_SLEEP;
+
+            sleepsec = 60 * 60; //并休眠60分钟
+            Serial.println("警告：当前电压低于3.5V，停止数据处理");
+
+            //发最后一次数据
+            WiFisetup();              //自动配网连接WiFi
+            if (loginAPRS() == false) //登录APRS服务器并发送数据
+                sleepsec = 60;        //如果失败休眠1分钟后再试
+            client.stop();            //关闭已经创建的连接
+        }
+    }
+    //电压小于3.2V时不处理数据
+    else
+        sleepsec = 60 * 60; //直接休眠60分钟
+
+    digitalWrite(LED_BUILTIN, 1); //关灯
+
+#ifdef DEBUG_MODE
+    ESP.deepSleep(10 * 1000 * 1000); //休眠10秒
+#else
+    ESP.deepSleep(sleepsec * 1000 * 1000); //休眠
 #endif
 }
 
 void loop()
 {
-    calsleeptime();     //计算休眠时间
-    if (voltage >= 3.5) //电压不小于3.5V才处理
-    {
-        WiFisetup();              //自动配网连接WiFi
-        if (loginAPRS() == false) //登录APRS服务器并发送数据
-            sleepsec = 60;        //如果失败休眠1分钟后再试
-        client.stop();            //关闭已经创建的连接
-    }
-    else //电压小于3.6V时不处理数据并休眠60分钟
-        Serial.println("警告：当前电压低于3.5V，停止数据处理");
-    digitalWrite(LED_BUILTIN, 1); //关灯
-
-#ifdef DEBUG_MODE
-    delay(10 * 1000);
-    digitalWrite(LED_BUILTIN, 0); //亮灯
-#else
-    ESP.deepSleep(sleepsec * 1000 * 1000); //休眠
-#endif
 }
