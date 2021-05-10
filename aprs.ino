@@ -294,7 +294,8 @@ void setup()
         EEPROM.begin(EEP_SIZE);          //初始化EEPROM
         runmode = EEPROM.read(SYS_ADDR); //读取系统休眠状态
 
-        if (voltage >= 3.3f) //在3.3V-4.2V区间
+        //在3.3V-4.2V区间，正常工作
+        if (voltage >= 3.3f)
         {
             //如果当前不是运行状态，更改为运行状态
             if (runmode != SYS_RUN)
@@ -310,21 +311,24 @@ void setup()
             send_once();
         }
 
-        else if (runmode != SYS_SLEEP) //如果电压低于3.4V，而且是不是休眠状态，转入休眠状态
+        //如果电压低于3.4V
+        else
         {
-            EEPROM.write(SYS_ADDR, SYS_SLEEP);
-            EEPROM.commit();
-            EEPROM.end(); //写入FLASH
-            runmode = SYS_SLEEP;
+            //不是休眠状态，设置休眠状态
+            if (runmode != SYS_SLEEP)
+            {
+                EEPROM.write(SYS_ADDR, SYS_SLEEP);
+                EEPROM.commit();
+                EEPROM.end(); //写入FLASH
+                runmode = SYS_SLEEP;
+                Serial.println("警告：当前电压低于3.3V，停止数据处理");
 
-            sleepsec = 60 * 60; //并休眠60分钟
-            Serial.println("警告：当前电压低于3.3V，停止数据处理");
+                //发最后一次数据
+                send_once();
+            }
 
-            //发最后一次数据
-            send_once();
+            sleepsec = sleepsec = 60 * 60; //休眠60分钟
         }
-
-        sleepsec = sleepsec = 60 * 60; //休眠60分钟
     }
     //电压小于3.2V时不处理数据
     else
