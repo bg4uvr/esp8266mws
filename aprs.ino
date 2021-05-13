@@ -1,9 +1,15 @@
-// ESP8266 APRS 气象站
+/*
+   
+    Esp8266-MWS ( Esp8266 Mini Weather Station)
+
+    bg4uvr @ 2021.5
+
+*/
 
 #define DEBUG_MODE //调试模式时不把语句发往服务器
+//#define EEPROM_CLEAR //调试时清除EEPROM
 
-//调试用宏语句
-//在调试主机已连接时，将把相关消息发往主机
+//判断到已连接调试主机时，将把调试消息发往主机
 #define DBGPRINT(x)             \
     if (client_dbg.connected()) \
         client_dbg.print(x);
@@ -12,6 +18,7 @@
     if (client_dbg.connected()) \
         client_dbg.println(x);
 
+//包含头文件
 #include <ESP8266WiFi.h>
 #include <Wire.h>
 #include <Time.h>
@@ -21,7 +28,7 @@
 #include <EEPROM.h>
 #include <ArduinoOTA.h>
 
-//系统状态
+//系统状态枚举
 enum sys_mode_t
 {
     sys_FAIL,      //非法状态
@@ -32,14 +39,14 @@ enum sys_mode_t
     sys_SLEEP2RUN, //休眠转为正常状态
 };
 
-//配置数据
+//配置数据结构
 struct cfg_t
 {
     char aprs_server_addr[26];  //APRS服务器地址 26
     uint16_t aprs_server_port;  //APRS服务器端口 2
     char debug_server_addr[26]; //调试主机地址 26
     uint16_t debug_server_port; //调试主机端口 2
-    char callsign[8];           //呼号 6
+    char callsign[8];           //呼号 8
     int ssid;                   //SSID 2
     uint16_t password;          //APRS密码 2
     uint16_t min_send_interval; //最小发送间隔 2
@@ -51,7 +58,7 @@ struct cfg_t
     uint32_t crc;               //校验值 4
 };
 
-//全局变量
+//系统全局变量
 cfg_t mycfg;                        //系统配置参数
 WiFiClient client_aprs, client_dbg; //实例化aprs服务器连接和调试连接
 float voltage;                      //电池电压
@@ -59,7 +66,7 @@ uint16_t sleepsec;                  //下次工作延时
 uint32_t last_send;                 //上一次发送时刻
 char msgbuf[150] = {0};             //消息格式化缓存
 
-//crc32
+//CRC32校验程序
 uint32_t crc32(uint8_t *data, int length)
 {
     uint32_t crc = 0xffffffff;
@@ -101,15 +108,14 @@ bool read_bmp280(float *temperature, float *pressure)
 {
     Adafruit_BMP280 bmp; //初始化BMP280实例
     DBGPRINTLN("正在初始化BMP280传感器...");
-    Wire.begin(0, 5); //重定义I2C端口
+    //Wire.begin(0, 5); //重定义I2C端口
     if (!bmp.begin(BMP280_ADDRESS_ALT))
-    {
         return false;
-    }
+
     DBGPRINTLN("BMP280传感器初始化成功");
 
     //设置BMP280采样参数
-    bmp.setSampling(Adafruit_BMP280::MODE_FORCED, //FORCE模式读完自动转换回sleep模式？
+    bmp.setSampling(Adafruit_BMP280::MODE_FORCED, //FORCE模式读完自动转换回sleep模式
                     Adafruit_BMP280::SAMPLING_X1,
                     Adafruit_BMP280::SAMPLING_X4,
                     Adafruit_BMP280::FILTER_X16,
@@ -136,10 +142,13 @@ bool read_dht11(float *humidity)
         return true;
     }
     else
+    {
+        DBGPRINTLN("DHT11读取失败");
         return false;
+    }
 }
 
-//发送数据
+//读取传感器并发送一次数据
 void send_data()
 {
     float humidity, temperatureBMP, pressure;   //保存湿度、温度、气压的浮点变量
@@ -150,25 +159,21 @@ void send_data()
 
     if (dhtRES) //DHT11读取成功
     {
-        if (client_dbg.connected())
-        {
-            snprintf(msgbuf, sizeof(msgbuf), "DHT11湿度：%0.2f", humidity);
-            client_dbg.println(msgbuf);
-        }
+        snprintf(msgbuf, sizeof(msgbuf), "DHT11湿度：%0.2f", humidity);
+        DBGPRINTLN(msgbuf);
+
         humidityINT = humidity; //湿度转换为整数
         if (humidityINT > 100)  //限制范围1-99
             humidityINT = 99;
         if (humidity < 0)
             humidityINT = 1;
     }
-    else //DHT11读取失败
-    {
-        DBGPRINTLN("DHT11读取失败");
+    else                  //DHT11读取失败
         humidityINT = 50; //湿度值设为50
-    }
 
     if (bmpRES) //BMP280读取成功
     {
+
         snprintf(msgbuf, sizeof(msgbuf), "BMP280温度：%0.2f\tBMP280气压%0.2f", temperatureBMP, pressure);
         DBGPRINTLN(msgbuf);
 
@@ -177,28 +182,29 @@ void send_data()
     }
     else //BMP280读取失败
     {
-        DBGPRINTLN("BMP280读取失败");
         temperatureF = 25;   //温度值设置为25度
         pressureINT = 10132; //气压值设置为10132
     }
 
+    //运行模式发送的语句
     if (mycfg.sysmode == sys_RUN) //3153.47N/12106.86E
         snprintf(msgbuf, sizeof(msgbuf),
                  "BG4UVR-10>APZUVR,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d battery:%0.2fV, interval: %dmins",
                  mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W', temperatureF, humidityINT, pressureINT, voltage, sleepsec / 60);
+    //休眠前最后发送的语句
     else if (mycfg.sysmode == sys_RUN2SLEEP)
         snprintf(msgbuf, sizeof(msgbuf),
                  "BG4UVR-10>APZUVR,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d BATTTERY TOO LOW, SYSTEM　SUSPENDED",
                  mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W', temperatureF, humidityINT, pressureINT);
 
-    DBGPRINTLN(msgbuf);
-
 #ifndef DEBUG_MODE
     client_aprs.println(msgbuf); //数据发往服务器
 #endif
+
+    DBGPRINTLN(msgbuf);
 }
 
-//连接APRS服务器
+//登陆APRS服务器发送数据
 bool loginAPRS()
 {
     uint8_t retrycnt = 0;
@@ -216,44 +222,50 @@ bool loginAPRS()
                     String line = client_aprs.readStringUntil('\n'); //获取字符串
                     DBGPRINTLN(line);                                //把字符串传给串口
 
-                    if (line.indexOf("aprsc") != -1) //语句含有 aprsc 并且未登录时
+                    //语句含有 aprsc 并且未登录时
+                    if (line.indexOf("aprsc") != -1)
                     {
                         DBGPRINTLN("正在登录ARPS服务器...");
-                        sprintf(msgbuf, "user %s-%d pass %d vers Esp8266MWS 0.1 filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
-                        //String loginmsg = "user BG4UVR-13 pass 21410 vers Esp8266WeatherStation 0.1 filter m/10"; //APRS登录命令
+                        sprintf(msgbuf, "user %s-%d pass %d vers Esp8266-MWS 0.1 filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句
                         DBGPRINTLN(msgbuf);
                     }
+                    //登陆验证成功
                     else if (line.indexOf("verified") != -1)
                     {
                         DBGPRINTLN("APRS服务器登录成功");
                         send_data(); //发送数据
-                        DBGPRINTLN("本次数据发送已完成");
                         return true;
                     }
+                    //服务器已满
                     else if (line.indexOf("# Server full") != -1 || line.indexOf("# Port full") != -1)
                     {
                         DBGPRINTLN("服务器已负荷已满，稍后重试");
                         return false;
                     }
+                    //5次收到消息都不是预期的内容
                     if (++recv_cnt > 5)
                     {
                         DBGPRINTLN("错误：没能从服务器接收到预期类型的数据");
                         return false;
                     };
                 }
+                //服务器已连接但未收到数据，每次延迟2秒
                 else
                     delay(2000);
             } while (++retrycnt < 5); //10秒内未收到数据认为超时
+
             DBGPRINTLN("错误：接收APRS服务器数据超时");
             return false;
         }
+        //连接APRS服务器失败
         else
         {
             DBGPRINT('.');
             delay(1000);
         }
-    } while (++retrycnt < 10);
+    } while (++retrycnt < 5); //5次都未能成功连接服务器
+
     DBGPRINTLN("\n错误：连接APRS失败次数过多，已退出重试");
     return false;
 }
@@ -269,34 +281,36 @@ void voltageLOW()
         ESP.deepSleep((uint32_t)60 * 60 * 1000 * 1000);
     }
 #else
-    voltage = 4.0f;
+    voltage = 4.0f; //调试时因已连接USB线，电压偏高，虚拟一个电压值
 #endif
 }
 
 //显示帮助信息
 void disphelpmsg()
 {
-    client_dbg.println("\n\t《Esp8266MWS》 Esp8266 Mini Weather Station");
-    client_dbg.println("当前系统未配置或配置数据已损坏，请发送配置命令。");
-    client_dbg.println("命令格式：");
-    client_dbg.println("    SET:APRS_ADDR,APRS_PORT,DEBUG_ADDR,DEBUG_PORT,CALLSIGN,SSID,PASSWWORD,MIN_I,MAX_I,SUSPEND_V,LON,LAT*");
-    client_dbg.println("");
-    client_dbg.println("    APRS_ADDR:  APRS服务器地址，可以是域名也可以是IP地址");
-    client_dbg.println("    APRS_PORT:  APRS服务器端口号");
-    client_dbg.println("    DEBUG_ADD:  调试配置服务器地址，需要设置为配件用电脑局域网的IP地址");
-    client_dbg.println("    DEBUG_PORT: 调试配置服端口号");
-    client_dbg.println("    CALLSIGN:   呼号，最多可以6位数字和字母");
-    client_dbg.println("    SSID:       辅助ID号（建议值:13）");
-    client_dbg.println("    MIN_I:      最小数据发送间隔，单位为“秒”，电池电压最高时以此间隔发送数据（建议值：300）");
-    client_dbg.println("    MAX_I:      最大数据发送间隔，单位为“秒”，电池电压最低时以此间隔发送数据（建议值：1800）");
-    client_dbg.println("    SUSPEND_V:  保护休眠电压，单位为“伏”，电压低于此值时系统将停止工作（设置范围：3.0-3.6）");
-    client_dbg.println("    LON:        台站经度，格式：dddmm.mm，东经为正，西经为负");
-    client_dbg.println("    LAT:        台站纬度，格式：ddmm.mm，北纬为正，南纬为负");
-    client_dbg.println("");
-    client_dbg.println("配置命令示例:");
-    client_dbg.println("    SET china.aprs2.net 14580 192.168.1.125 2222 BGnXXX 13 12345 300 1800 3.4 12100.00 3200.00*");
+    client_dbg.print("\n\
+    《Esp8266MWS》 Esp8266 Mini Weather Station\n\
+\n\
+当前系统未配置或配置数据已损坏，请发送配置命令。\n\
+命令格式：\n\
+    SET:APRS_ADDR,APRS_PORT,DEBUG_ADDR,DEBUG_PORT,CALLSIGN,SSID,PASSWWORD,MIN_I,MAX_I,SUSPEND_V,LON,LAT*\n\n\
+    APRS_ADDR:  APRS服务器地址，可以是域名也可以是IP地址\n\
+    APRS_PORT:  APRS服务器端口号\n\
+    DEBUG_ADD:  调试配置服务器地址，需要设置为配件用电脑局域网的IP地址\n\
+    DEBUG_PORT: 调试配置服端口号\n\
+    CALLSIGN:   呼号，最多可以6位数字和字母\n\
+    SSID:       辅助ID号（建议值:13）\n\
+    MIN_I:      最小数据发送间隔，单位为“秒”，电池电压最高时以此间隔发送数据（建议值：300）\n\
+    MAX_I:      最大数据发送间隔，单位为“秒”，电池电压最低时以此间隔发送数据（建议值：1800）\n\
+    SUSPEND_V:  保护休眠电压，单位为“伏”，电压低于此值时系统将停止工作（设置范围：3.0-3.6）\n\
+    LON:        台站经度，格式：dddmm.mm，东经为正，西经为负\n\
+    LAT:        台站纬度，格式：ddmm.mm，北纬为正，南纬为负\n\
+\n\
+配置命令示例:\n\
+    SET china.aprs2.net 14580 192.168.1.125 2222 BGnXXX 13 12345 300 1800 3.4 12100.00 3200.00*\n");
 }
 
+//显示配置数据
 void dispset(cfg_t *c)
 {
     client_dbg.print("aprs服务器地址:\t");
@@ -325,81 +339,90 @@ void dispset(cfg_t *c)
     client_dbg.println(c->lat);
 }
 
-//系统配置数据设置子程序
+//系统配置程序
 void set_cfg()
 {
-    String line = client_dbg.readStringUntil('\n'); //获取字符串
-    client_dbg.println("\n您发送的命令为：");       //命令回显
+    //如果没有接收到数据直接返回
+    if (!client_dbg.available())
+        return;
+
+    //获取调试服务器发来的字符串
+    String line = client_dbg.readStringUntil('\n');
+    client_dbg.println("\n您发送的命令为："); //命令回显
     client_dbg.println(line);
 
-    int16_t head, comma, tail; //查找是否包含命令头，分隔符和命令尾
+    //查找是否包含命令头，分隔符和命令尾
+    int16_t head, comma, tail;
     head = line.indexOf("SET");
     tail = line.indexOf('*');
 
     //准备解析并判断配置指令
-    if (head != -1 && tail != -1) //语句含有 SET: 和 逗号 和 * 号
+    if (head == -1 || tail == -1) //如果语句中不包含“SET:”或者“*”
     {
-        //解析命令字符串
-        //SET china.aprs2.net 14580 192.168.1.125 2222 BGnXXX 13 300 1800 3.4 12100.00 3200.00*
-        char *buf = new char[line.length() + 1]; //新建缓存，用于String类型转换为char[]类型
-        strcpy(buf, line.c_str());               //复制字符串
+        client_dbg.println("错误：你发送的命令格式不正确，请更正后重试！");
+        return;
+    }
 
-        cfg_t read_cfg; //新建配置字变量
-        char *p;        //新建用于分割字符串的指针
+    //开始解析命令字符串
+    //SET china.aprs2.net 14580 192.168.1.125 2222 BGnXXX 13 300 1800 3.4 12100.00 3200.00*
+    char *buf = new char[line.length() + 1]; //新建临时缓存，用于String类型转换为char[]类型
+    strcpy(buf, line.c_str());               //复制字符串
 
-        //分割，第一处"SET "丢弃
-        p = strtok(buf, " ");
+    cfg_t read_cfg; //新建配置字变量
+    char *p;        //新建用于分割字符串的指针
+
+    //分割，第一处"SET "丢弃
+    p = strtok(buf, " ");
+    if (p)
+    {
+        p = strtok(NULL, " ");
+        //分割识别并保存各项配置数据
         if (p)
         {
+            strcpy(read_cfg.aprs_server_addr, p);
             p = strtok(NULL, " ");
-            //再次分割
             if (p)
             {
-                strcpy(read_cfg.aprs_server_addr, p);
+                read_cfg.aprs_server_port = atoi(p);
                 p = strtok(NULL, " ");
                 if (p)
                 {
-                    read_cfg.aprs_server_port = atoi(p);
+                    strcpy(read_cfg.debug_server_addr, p);
                     p = strtok(NULL, " ");
                     if (p)
                     {
-                        strcpy(read_cfg.debug_server_addr, p);
+                        read_cfg.debug_server_port = atoi(p);
                         p = strtok(NULL, " ");
                         if (p)
                         {
-                            read_cfg.debug_server_port = atoi(p);
+                            strcpy(read_cfg.callsign, p);
                             p = strtok(NULL, " ");
                             if (p)
                             {
-                                strcpy(read_cfg.callsign, p);
+                                read_cfg.ssid = atoi(p);
                                 p = strtok(NULL, " ");
                                 if (p)
                                 {
-                                    read_cfg.ssid = atoi(p);
+                                    read_cfg.password = atoi(p);
                                     p = strtok(NULL, " ");
                                     if (p)
                                     {
-                                        read_cfg.password = atoi(p);
+                                        read_cfg.min_send_interval = atoi(p);
                                         p = strtok(NULL, " ");
                                         if (p)
                                         {
-                                            read_cfg.min_send_interval = atoi(p);
+                                            read_cfg.max_send_interval = atoi(p);
                                             p = strtok(NULL, " ");
                                             if (p)
                                             {
-                                                read_cfg.max_send_interval = atoi(p);
+                                                read_cfg.suspend_voltage = atof(p);
                                                 p = strtok(NULL, " ");
                                                 if (p)
                                                 {
-                                                    read_cfg.suspend_voltage = atof(p);
+                                                    read_cfg.lon = atof(p);
                                                     p = strtok(NULL, " ");
                                                     if (p)
-                                                    {
-                                                        read_cfg.lon = atof(p);
-                                                        p = strtok(NULL, " ");
-                                                        if (p)
-                                                            read_cfg.lat = atof(p);
-                                                    }
+                                                        read_cfg.lat = atof(p);
                                                 }
                                             }
                                         }
@@ -411,44 +434,59 @@ void set_cfg()
                 }
             }
         }
-        delete[] buf;
-
-        client_dbg.print("\n命令解析结果：\n");
-        dispset(&read_cfg);
-
-        //配置数据存在明显错误
-        if (
-            read_cfg.ssid < 0 ||
-            read_cfg.ssid > 15 ||
-            read_cfg.max_send_interval > 3600 ||
-            read_cfg.min_send_interval < 60 ||
-            read_cfg.suspend_voltage < 3.0 ||
-            read_cfg.suspend_voltage > 3.6 ||
-            read_cfg.lon < -18000 ||
-            read_cfg.lon > 18000 ||
-            read_cfg.lat < -9000 ||
-            read_cfg.lat > 9000)
-
-            client_dbg.println("您设置的参数可能有误，请仔细检查修正后重试");
-
-        //配置数据通过基本的检测
-        else
-        {
-            mycfg = read_cfg;                                        //保存配置数据
-            mycfg.sysmode = sys_RUN;                                 //更改系统状态为运行状态
-            mycfg.crc = crc32((uint8_t *)&mycfg, sizeof(mycfg) - 4); //计算配置数据校验值
-            for (uint8_t i = 0; i < sizeof(cfg_t); i++)              //写入配置数据
-                EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
-            EEPROM.commit(); //提交数据
-            EEPROM.end();    //写入FLASH
-            client_dbg.println("设置参数已成功保存");
-            client_dbg.println("请注意：此处无法准确检查您所设定参数的正确性，您需要根据运行结果来自行确认！");
-        }
     }
+    delete[] buf; //注销临时缓存
+
+    //显示命令解析结果
+    client_dbg.print("\n你的设置为：\n");
+    dispset(&read_cfg);
+
+    //配置数据存在明显错误
+    if (
+        read_cfg.ssid < 0 ||
+        read_cfg.ssid > 15 ||
+        read_cfg.max_send_interval > 3600 ||
+        read_cfg.min_send_interval < 60 ||
+        read_cfg.suspend_voltage < 3.0 ||
+        read_cfg.suspend_voltage > 3.6 ||
+        read_cfg.lon < -18000 ||
+        read_cfg.lon > 18000 ||
+        read_cfg.lat < -9000 ||
+        read_cfg.lat > 9000)
+        client_dbg.println("您设置的参数有误，请仔细检查修正后重试");
+
+    //配置数据通过基本的检测
     else
     {
-        client_dbg.println("错误：你发送的命令格式不正确，请更正后重试！");
+        mycfg = read_cfg;                                        //保存配置数据
+        mycfg.sysmode = sys_RUN;                                 //更改系统状态为运行状态
+        mycfg.crc = crc32((uint8_t *)&mycfg, sizeof(mycfg) - 4); //计算配置数据校验值
+        for (uint8_t i = 0; i < sizeof(cfg_t); i++)              //写入配置数据
+            EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
+        EEPROM.commit(); //提交数据
+        EEPROM.end();    //写入FLASH
+        client_dbg.println("设置参数已保存");
+        client_dbg.println("请注意：此处无法准确检查您所设定参数的正确性，您需要根据运行结果来自行确认是否正确无误！");
     }
+}
+
+//保存配置数据
+void eeprom_save()
+{
+    mycfg.crc = crc32((uint8_t *)&mycfg, sizeof(mycfg) - 4); //计算校验值
+    for (uint8_t i = 0; i < sizeof(cfg_t); i++)              //写入配置数据
+        EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
+    EEPROM.commit(); //提交数据
+    EEPROM.end();    //写入FLASH
+}
+
+//连接调试主机时的空闲扫描
+void freeloop()
+{
+    set_cfg();           //处理配置命令
+    voltageLOW();        //电压过低判断
+    ArduinoOTA.handle(); //OTA处理
+    delay(10);           //延时
 }
 
 //系统初始化
@@ -466,6 +504,16 @@ void setup()
     ArduinoOTA.setHostname("Esp8266MWS-OTA"); //设置OTA主机名
     ArduinoOTA.begin();                       //初始化OTA
     EEPROM.begin(128);                        //初始化EEPROM
+
+#ifdef DEBUG_MODE
+#ifdef EEPROM_CLEAR
+    //清除EEPROM
+    for (uint8_t i = 0; i < 128; i++)
+        EEPROM.write(i, 0xff);
+    EEPROM.commit();
+    EEPROM.end();
+#endif
+#endif
 
     //读取系统配置数据
     for (uint8_t i = 0; i < sizeof(cfg_t); i++)
@@ -499,30 +547,22 @@ void loop()
     {
         //休眠转正常
     case sys_SLEEP2RUN:
-        mycfg.sysmode = sys_RUN;                                 //设置为运行模式
-        mycfg.crc = crc32((uint8_t *)&mycfg, sizeof(mycfg) - 4); //计算校验值
-        for (uint8_t i = 0; i < sizeof(cfg_t); i++)              //写入配置数据
-            EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
-        EEPROM.commit(); //提交数据
-        EEPROM.end();    //写入FLASH
+        mycfg.sysmode = sys_RUN; //设置为运行模式
+        eeprom_save();           //保存配置数据
 
         //正常状态
     case sys_RUN:
-        sleepsec = 300 + (4.2f - voltage) * 1500 / (4.2f - mycfg.suspend_voltage); //计算休眠时间，均匀延时（30分-5分)
+        sleepsec = 300 + (4.2f - voltage) * 1500 / (4.2f - mycfg.suspend_voltage); //计算唤醒时间
         break;
 
         //正常转休眠
     case sys_RUN2SLEEP:
-        mycfg.sysmode = sys_SLEEP;                               //设置为运行模式
-        mycfg.crc = crc32((uint8_t *)&mycfg, sizeof(mycfg) - 4); //计算校验值
-        for (uint8_t i = 0; i < sizeof(cfg_t); i++)              //写入配置数据
-            EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
-        EEPROM.commit(); //提交数据
-        EEPROM.end();    //写入FLASH
+        mycfg.sysmode = sys_SLEEP; //设置为运行模式
+        eeprom_save();             //保存配置数据
 
-        //休眠状态
+        //低电休眠
     case sys_SLEEP:
-        sleepsec = 60 * 60; //休眠60分钟
+        sleepsec = 60 * 60; //60分钟后唤醒
         break;
 
         //非法状态以及其他任何不确定的状态，都进入配置模式
@@ -548,23 +588,16 @@ void loop()
         client_dbg.print("\n当前设备IP地址为：");
         client_dbg.println(WiFi.localIP()); //显示设备当前局域网IP地址
 
+        client_dbg.print("\n当前存储的配置数据：");
         dispset(&mycfg); //显示当前配置
         disphelpmsg();   //发送配置提示信息
 
         //此处解析配置命令，直到配置成功转为运行状态
         while (client_dbg.connected() && mycfg.sysmode != sys_RUN)
-        {
-            //如果调试服务器是有数据发来，处理配置数据
-            if (client_dbg.available())
-                set_cfg();
+            freeloop();
+    }
 
-            voltageLOW();        //电压过低判断
-            ArduinoOTA.handle(); //OTA处理
-            delay(10);           //延时
-        }
-    } //初始配置模式
-
-    //除配置状态外的工作状态
+    //工作状态
     else
     {
         //如果连接到调试服务器成功
@@ -577,21 +610,14 @@ void loop()
                 if (loginAPRS())
                     sleepsec = 300 + (4.2f - voltage) * 1500 / (4.2f - mycfg.suspend_voltage); //计算休眠时间，均匀延时（30分-5分)
                 else
-                    sleepsec = 30; //延迟30秒重试
+                    sleepsec = 60; //延迟60秒重试
 
                 last_send = millis(); //保存最后发送的时间
                 client_aprs.stop();   //关闭已经创建的连接
 
                 //没有到达延迟时间前一直等待
                 while (millis() - last_send < sleepsec * 1000)
-                {
-                    //如果调试服务器是有数据发来，处理配置数据
-                    if (client_dbg.available())
-                        set_cfg();
-                    voltageLOW();        //电压过低判断
-                    ArduinoOTA.handle(); //OTA处理
-                    delay(10);           //延时
-                }
+                    freeloop();
             }
         }
         //没能连接到调试服务器
