@@ -595,7 +595,7 @@ void loop()
 
         //正常状态
     case sys_RUN:
-        sleepsec = 300 + (4.2f - voltage) * 1500 / (4.2f - mycfg.suspend_voltage); //计算唤醒时间
+        sleepsec = mycfg.min_send_interval + ((4.2f - voltage) / (4.2f - mycfg.suspend_voltage)) * mycfg.max_send_interval; //计算唤醒时间
         break;
 
         //正常转休眠
@@ -650,7 +650,7 @@ void loop()
             {
                 //登录APRS服务器并发送数据
                 if (loginAPRS())
-                    sleepsec = 300 + (4.2f - voltage) * 1500 / (4.2f - mycfg.suspend_voltage); //计算休眠时间，均匀延时（30分-5分)
+                    sleepsec = mycfg.min_send_interval + ((4.2f - voltage) / (4.2f - mycfg.suspend_voltage)) * mycfg.max_send_interval; //计算唤醒时间
                 else
                     sleepsec = 60; //延迟60秒重试
 
@@ -660,6 +660,7 @@ void loop()
                 //没有到达延迟时间，并且调试连接还在连接，一直等待
                 while (millis() - last_send < sleepsec * 1000 && client_dbg.connected())
                     freeloop();
+                ESP.deepSleep(sleepsec * 1000 * 1000); //断开调试连接后立刻休眠
             }
         }
         //没能连接到调试服务器
