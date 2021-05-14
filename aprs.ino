@@ -6,7 +6,7 @@
 
 */
 
-#define DEBUG_MODE //调试模式时不把语句发往服务器
+//#define DEBUG_MODE //调试模式时不把语句发往服务器
 //#define EEPROM_CLEAR //调试时清除EEPROM
 //#define DHT11 //使用DHT11传感器
 #define AHT20 //使用AHT20传感器
@@ -115,7 +115,7 @@ bool read_bmp280(float *temperature, float *pressure)
 {
     Adafruit_BMP280 bmp; //初始化BMP280实例
     DBGPRINTLN("正在读取BMP280传感器");
-    Wire.begin(14, 12); //重定义I2C端口（SDA、SCL）
+    Wire.begin(12, 14); //重定义I2C端口（SDA、SCL）
     if (!bmp.begin())   //if (!bmp.begin(BMP280_ADDRESS_ALT))
     {
         DBGPRINTLN("BMP280读取失败");
@@ -140,8 +140,8 @@ bool read_aht20(float *temperature, float *humidity)
     sensors_event_t humAHT, tempAHT;
     Adafruit_AHTX0 aht;
     DBGPRINTLN("正在读取AHT20传感器");
-    Wire.begin(14, 12); //重定义I2C端口（SDA、SCL）
-    if (!aht.begin())   //if (!bmp.begin(BMP280_ADDRESS_ALT))
+    Wire.begin(12, 14); //重定义I2C端口（SDA、SCL）
+    if (!aht.begin())
     {
         DBGPRINTLN("AHT20读取失败");
         return false;
@@ -224,13 +224,13 @@ void send_data()
     //运行模式发送的语句
     if (mycfg.sysmode == sys_RUN) //3153.47N/12106.86E
         snprintf(msgbuf, sizeof(msgbuf),
-                 "%s-%d>APZESP,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d battery:%0.2fV, interval: %dmins",
+                 "%s-%d>APZUVR,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d battery:%0.2fV, interval:%dmins",
                  mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
                  temperatureF, humidityINT, pressureINT, voltage, sleepsec / 60);
     //休眠前最后发送的语句
     else if (mycfg.sysmode == sys_RUN2SLEEP)
         snprintf(msgbuf, sizeof(msgbuf),
-                 "%s-%d>APZESP,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d BATTTERY TOO LOW, SYSTEM　SUSPENDED",
+                 "%s-%d>APZUVR,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d BATTTERY TOO LOW, SYSTEM　SUSPENDED",
                  mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
                  temperatureF, humidityINT, pressureINT);
 
@@ -320,31 +320,6 @@ void voltageLOW()
 #else
     voltage = 4.0f; //调试时因已连接USB线，电压偏高，虚拟一个电压值
 #endif
-}
-
-//显示帮助信息
-void disphelpmsg()
-{
-    client_dbg.print("\n\
-    《Esp8266MWS》 Esp8266 Mini Weather Station\n\
-\n\
-当前系统未配置或配置数据已损坏，请发送配置命令。\n\
-命令格式：\n\
-    SET:APRS_ADDR,APRS_PORT,DEBUG_ADDR,DEBUG_PORT,CALLSIGN,SSID,PASSWWORD,MIN_I,MAX_I,SUSPEND_V,LON,LAT*\n\n\
-    APRS_ADDR:  APRS服务器地址，可以是域名也可以是IP地址\n\
-    APRS_PORT:  APRS服务器端口号\n\
-    DEBUG_ADD:  调试配置服务器地址，需要设置为配件用电脑局域网的IP地址\n\
-    DEBUG_PORT: 调试配置服端口号\n\
-    CALLSIGN:   呼号，最多可以6位数字和字母\n\
-    SSID:       辅助ID号（建议值:13）\n\
-    MIN_I:      最小数据发送间隔，单位为“秒”，电池电压最高时以此间隔发送数据（建议值：300）\n\
-    MAX_I:      最大数据发送间隔，单位为“秒”，电池电压最低时以此间隔发送数据（建议值：1800）\n\
-    SUSPEND_V:  保护休眠电压，单位为“伏”，电压低于此值时系统将停止工作（设置范围：3.0-3.6）\n\
-    LON:        台站经度，格式：dddmm.mm，东经为正，西经为负\n\
-    LAT:        台站纬度，格式：ddmm.mm，北纬为正，南纬为负\n\
-\n\
-配置命令示例:\n\
-    SET china.aprs2.net 14580 192.168.1.125 2222 BGnXXX 13 12345 300 1800 3.4 12100.00 3200.00*\n");
 }
 
 //显示配置数据
@@ -572,6 +547,41 @@ void setup()
     }
 }
 
+//显示系统信息
+void dispsysinfo()
+{
+    //显示系统名称
+    client_dbg.println("\n\t《Esp8266MWS》 Esp8266 Mini Weather Station");
+
+    //显示设备当前局域网IP地址
+    client_dbg.print("\n当前设备IP地址为：");
+    client_dbg.println(WiFi.localIP());
+
+    //显示当前配置
+    client_dbg.println("\n当前存储的配置数据：");
+    dispset(&mycfg);
+
+    //显示提示消息
+    client_dbg.println("\n\
+配置命令格式说明：\n\
+\n\
+    SET:APRS_ADDR,APRS_PORT,DEBUG_ADDR,DEBUG_PORT,CALLSIGN,SSID,PASSWWORD,MIN_I,MAX_I,SUSPEND_V,LON,LAT*\n\n\
+    APRS_ADDR:  APRS服务器地址，可以是域名也可以是IP地址\n\
+    APRS_PORT:  APRS服务器端口号\n\
+    DEBUG_ADD:  调试配置服务器地址，需要设置为配件用电脑局域网的IP地址\n\
+    DEBUG_PORT: 调试配置服端口号\n\
+    CALLSIGN:   呼号，最多可以6位数字和字母\n\
+    SSID:       辅助ID号（建议值:13）\n\
+    MIN_I:      最小数据发送间隔，单位为“秒”，电池电压最高时以此间隔发送数据（建议值：300）\n\
+    MAX_I:      最大数据发送间隔，单位为“秒”，电池电压最低时以此间隔发送数据（建议值：1800）\n\
+    SUSPEND_V:  保护休眠电压，单位为“伏”，电压低于此值时系统将停止工作（设置范围：3.0-3.6）\n\
+    LON:        台站经度，格式：dddmm.mm，东经为正，西经为负\n\
+    LAT:        台站纬度，格式：ddmm.mm，北纬为正，南纬为负\n\
+\n\
+配置命令示例:\n\
+    SET china.aprs2.net 14580 192.168.1.125 2222 BGnXXX 13 12345 300 1800 3.4 12100.00 3200.00*\n");
+}
+
 //程序主循环
 void loop()
 {
@@ -617,13 +627,9 @@ void loop()
             delay(2000);         //延时2秒
         }
 
-        //已连接到默认配置服务器
-        client_dbg.print("\n当前设备IP地址为：");
-        client_dbg.println(WiFi.localIP()); //显示设备当前局域网IP地址
-
-        client_dbg.print("\n当前存储的配置数据：");
-        dispset(&mycfg); //显示当前配置
-        disphelpmsg();   //发送配置提示信息
+        //已连接到默认配置服务器，显示系统信息
+        dispsysinfo();
+        client_dbg.println("\n系统配置数据校验失败，请发送配置命令重新配置系统！");
 
         //此处解析配置命令，直到配置成功转为运行状态
         while (client_dbg.connected() && mycfg.sysmode != sys_RUN)
@@ -636,6 +642,9 @@ void loop()
         //如果连接到调试服务器成功
         if (client_dbg.connect(mycfg.debug_server_addr, mycfg.debug_server_port))
         {
+            //已连接到默认配置服务器，显示系统信息
+            dispsysinfo();
+
             //只要服务器连接未断开就一直循环运行
             while (client_dbg.connected())
             {
@@ -648,8 +657,8 @@ void loop()
                 last_send = millis(); //保存最后发送的时间
                 client_aprs.stop();   //关闭已经创建的连接
 
-                //没有到达延迟时间前一直等待
-                while (millis() - last_send < sleepsec * 1000)
+                //没有到达延迟时间，并且调试连接还在连接，一直等待
+                while (millis() - last_send < sleepsec * 1000 && client_dbg.connected())
                     freeloop();
             }
         }
