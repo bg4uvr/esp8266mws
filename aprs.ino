@@ -199,8 +199,8 @@ void send_data()
         DBGPRINTLN(msgbuf);
 
         humidityINT = humidity; //湿度转换为整数
-        if (humidityINT > 100)  //限制范围1-99
-            humidityINT = 99;
+        if (humidityINT > 100)  //限制范围1-100（100设置为0）
+            humidityINT = 0;
         if (humidity < 0)
             humidityINT = 1;
     }
