@@ -1,6 +1,6 @@
 /*
    
-    Esp8266-MWS ( Esp8266 Mini Weather Station)
+    Esp8266-MWS (Esp8266 Mini Weather Station)
 
     bg4uvr @ 2021.5
 
@@ -8,6 +8,8 @@
 
 #define DEBUG_MODE //调试模式时不把语句发往服务器
 //#define EEPROM_CLEAR //调试时清除EEPROM
+//#define DHT11 //使用DHT11传感器
+#define AHT20 //使用AHT20传感器
 
 //判断到已连接调试主机时，将把调试消息发往主机
 #define DBGPRINT(x)             \
@@ -24,9 +26,14 @@
 #include <Time.h>
 #include <WiFiManager.h>
 #include <Adafruit_BMP280.h>
-#include <DHTesp.h>
 #include <EEPROM.h>
 #include <ArduinoOTA.h>
+#ifdef DHT11
+#include <DHTesp.h>
+#endif
+#ifdef AHT20
+#include <Adafruit_AHTX0.h>
+#endif
 
 //系统状态枚举
 enum sys_mode_t
@@ -107,32 +114,54 @@ void WiFisetup()
 bool read_bmp280(float *temperature, float *pressure)
 {
     Adafruit_BMP280 bmp; //初始化BMP280实例
-    DBGPRINTLN("正在初始化BMP280传感器...");
-    //Wire.begin(0, 5); //重定义I2C端口
-    if (!bmp.begin(BMP280_ADDRESS_ALT))
+    DBGPRINTLN("正在读取BMP280传感器");
+    Wire.begin(14, 12); //重定义I2C端口（SDA、SCL）
+    if (!bmp.begin())   //if (!bmp.begin(BMP280_ADDRESS_ALT))
+    {
+        DBGPRINTLN("BMP280读取失败");
         return false;
-
-    DBGPRINTLN("BMP280传感器初始化成功");
-
+    }
     //设置BMP280采样参数
     bmp.setSampling(Adafruit_BMP280::MODE_FORCED, //FORCE模式读完自动转换回sleep模式
                     Adafruit_BMP280::SAMPLING_X1,
                     Adafruit_BMP280::SAMPLING_X4,
                     Adafruit_BMP280::FILTER_X16,
                     Adafruit_BMP280::STANDBY_MS_1);
-    DBGPRINTLN("正在读取BMP280传感器");
     *temperature = bmp.readTemperature();
     *pressure = bmp.readPressure();
-    DBGPRINTLN("BMP280读取完成");
+    DBGPRINTLN("BMP280读取成功");
     return true;
 }
 
+#ifdef AHT20
+//读取AHT20
+bool read_aht20(float *temperature, float *humidity)
+{
+    sensors_event_t humAHT, tempAHT;
+    Adafruit_AHTX0 aht;
+    DBGPRINTLN("正在读取AHT20传感器");
+    Wire.begin(14, 12); //重定义I2C端口（SDA、SCL）
+    if (!aht.begin())   //if (!bmp.begin(BMP280_ADDRESS_ALT))
+    {
+        DBGPRINTLN("AHT20读取失败");
+        return false;
+    }
+
+    aht.getEvent(&humAHT, &tempAHT);
+
+    *temperature = tempAHT.temperature;
+    *humidity = humAHT.relative_humidity;
+    DBGPRINTLN("AHT20读取成功");
+    return true;
+}
+#endif
+
+#ifdef DHT11
 //读取DHT11
-bool read_dht11(float *humidity)
+bool read_dht11(float *temperature, float *humidity)
 {
     DHTesp dht; //DHT11实例
-    DBGPRINTLN("正在初始化DHT11传感器...");
-    dht.setup(14, DHTesp::DHT11); // Connect DHT sensor to GPIO5
+    dht.setup(13, DHTesp::DHT11);
     DBGPRINTLN("正在读取DHT11传感器");
     *humidity = dht.getHumidity();
 
@@ -147,19 +176,26 @@ bool read_dht11(float *humidity)
         return false;
     }
 }
+#endif
 
 //读取传感器并发送一次数据
 void send_data()
 {
-    float humidity, temperatureBMP, pressure;   //保存湿度、温度、气压的浮点变量
-    int humidityINT, temperatureF, pressureINT; //保存湿度、华氏温度、气压的整数变量
+    float temperatureHUM, humidity, temperatureBMP, pressure; //保存湿传感器的温度温度度，BMP280的温度、气压的浮点变量
+    int humidityINT, temperatureF, pressureINT;               //保存湿度、华氏温度、气压的整数变量
 
     bool bmpRES = read_bmp280(&temperatureBMP, &pressure); //读取BMP280
-    bool dhtRES = read_dht11(&humidity);                   //读取DHT11湿度
 
-    if (dhtRES) //DHT11读取成功
+#ifdef AHT20
+    bool hRES = read_aht20(&temperatureHUM, &humidity); //读取AHT20温度湿度
+#endif
+#ifdef DHT11
+    bool hRES = read_dht11(&temperatureHUM, &humidity); //读取DHT11温度湿度
+#endif
+
+    if (hRES) //湿度读取成功
     {
-        snprintf(msgbuf, sizeof(msgbuf), "DHT11湿度：%0.2f", humidity);
+        snprintf(msgbuf, sizeof(msgbuf), "湿度传感器温度：%0.2f\t湿度：%0.2f", temperatureHUM, humidity);
         DBGPRINTLN(msgbuf);
 
         humidityINT = humidity; //湿度转换为整数
@@ -171,9 +207,8 @@ void send_data()
     else                  //DHT11读取失败
         humidityINT = 50; //湿度值设为50
 
-    if (bmpRES) //BMP280读取成功
+    if (hRES) //BMP280读取成功
     {
-
         snprintf(msgbuf, sizeof(msgbuf), "BMP280温度：%0.2f\tBMP280气压%0.2f", temperatureBMP, pressure);
         DBGPRINTLN(msgbuf);
 
@@ -189,13 +224,15 @@ void send_data()
     //运行模式发送的语句
     if (mycfg.sysmode == sys_RUN) //3153.47N/12106.86E
         snprintf(msgbuf, sizeof(msgbuf),
-                 "BG4UVR-10>APZUVR,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d battery:%0.2fV, interval: %dmins",
-                 mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W', temperatureF, humidityINT, pressureINT, voltage, sleepsec / 60);
+                 "%s-%d>APZESP,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d battery:%0.2fV, interval: %dmins",
+                 mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
+                 temperatureF, humidityINT, pressureINT, voltage, sleepsec / 60);
     //休眠前最后发送的语句
     else if (mycfg.sysmode == sys_RUN2SLEEP)
         snprintf(msgbuf, sizeof(msgbuf),
-                 "BG4UVR-10>APZUVR,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d BATTTERY TOO LOW, SYSTEM　SUSPENDED",
-                 mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W', temperatureF, humidityINT, pressureINT);
+                 "%s-%d>APZESP,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d BATTTERY TOO LOW, SYSTEM　SUSPENDED",
+                 mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
+                 temperatureF, humidityINT, pressureINT);
 
 #ifndef DEBUG_MODE
     client_aprs.println(msgbuf); //数据发往服务器
@@ -339,6 +376,16 @@ void dispset(cfg_t *c)
     client_dbg.println(c->lat);
 }
 
+//保存配置数据
+void eeprom_save()
+{
+    mycfg.crc = crc32((uint8_t *)&mycfg, sizeof(mycfg) - 4); //计算校验值
+    for (uint8_t i = 0; i < sizeof(cfg_t); i++)              //写入配置数据
+        EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
+    EEPROM.commit(); //提交数据
+    EEPROM.end();    //写入FLASH
+}
+
 //系统配置程序
 void set_cfg()
 {
@@ -458,26 +505,12 @@ void set_cfg()
     //配置数据通过基本的检测
     else
     {
-        mycfg = read_cfg;                                        //保存配置数据
-        mycfg.sysmode = sys_RUN;                                 //更改系统状态为运行状态
-        mycfg.crc = crc32((uint8_t *)&mycfg, sizeof(mycfg) - 4); //计算配置数据校验值
-        for (uint8_t i = 0; i < sizeof(cfg_t); i++)              //写入配置数据
-            EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
-        EEPROM.commit(); //提交数据
-        EEPROM.end();    //写入FLASH
+        mycfg = read_cfg;        //保存配置数据
+        mycfg.sysmode = sys_RUN; //更改系统状态为运行状态
+        eeprom_save();           //保存配置数据
         client_dbg.println("设置参数已保存");
         client_dbg.println("请注意：此处无法准确检查您所设定参数的正确性，您需要根据运行结果来自行确认是否正确无误！");
     }
-}
-
-//保存配置数据
-void eeprom_save()
-{
-    mycfg.crc = crc32((uint8_t *)&mycfg, sizeof(mycfg) - 4); //计算校验值
-    for (uint8_t i = 0; i < sizeof(cfg_t); i++)              //写入配置数据
-        EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
-    EEPROM.commit(); //提交数据
-    EEPROM.end();    //写入FLASH
 }
 
 //连接调试主机时的空闲扫描
