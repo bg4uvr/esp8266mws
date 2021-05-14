@@ -595,7 +595,7 @@ void loop()
 
         //正常状态
     case sys_RUN:
-        sleepsec = mycfg.min_send_interval + ((4.2f - voltage) / (4.2f - mycfg.suspend_voltage)) * mycfg.max_send_interval; //计算唤醒时间
+        sleepsec = mycfg.min_send_interval + (4.2f - voltage) * (mycfg.max_send_interval - mycfg.min_send_interval) / (4.2f - mycfg.suspend_voltage); //计算唤醒时间
         break;
 
         //正常转休眠
@@ -650,12 +650,12 @@ void loop()
             {
                 //登录APRS服务器并发送数据
                 if (loginAPRS())
-                    sleepsec = mycfg.min_send_interval + ((4.2f - voltage) / (4.2f - mycfg.suspend_voltage)) * mycfg.max_send_interval; //计算唤醒时间
+                    sleepsec = mycfg.min_send_interval + (4.2f - voltage) * (mycfg.max_send_interval - mycfg.min_send_interval) / (4.2f - mycfg.suspend_voltage); //计算唤醒时间
                 else
                     sleepsec = 60; //延迟60秒重试
 
-                last_send = millis(); //保存最后发送的时间
                 client_aprs.stop();   //关闭已经创建的连接
+                last_send = millis(); //保存最后发送的时间
 
                 //没有到达延迟时间，并且调试连接还在连接，一直等待
                 while (millis() - last_send < sleepsec * 1000 && client_dbg.connected())
