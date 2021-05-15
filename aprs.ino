@@ -220,13 +220,13 @@ void send_data()
     //运行模式发送的语句
     if (mycfg.sysmode == sys_RUN) //3153.47N/12106.86E
         snprintf(msgbuf, sizeof(msgbuf),
-                 "%s-%d>APZUVR,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d battery:%0.2fV, interval:%dmins",
+                 "%s-%d>APUVR,qAC,:=%0.2f%c/%0.2f%c_c...s...g...t%03dh%02db%05dbattery:%0.2fV, interval:%dmins",
                  mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
                  temperatureF, humidityINT, pressureINT, voltage, sleepsec / 60);
     //休眠前最后发送的语句
     else if (mycfg.sysmode == sys_RUN2SLEEP)
         snprintf(msgbuf, sizeof(msgbuf),
-                 "%s-%d>APZUVR,qAC,:=%0.2f%c/%0.2f%c_c000s000g000t%03dr000p000h%02db%05d BATTTERY TOO LOW, SYSTEM　SUSPENDED",
+                 "%s-%d>APUVR,qAC,:=%0.2f%c/%0.2f%c_c...s...g...t%03dh%02db%05dBATTTERY TOO LOW, SYSTEM　SUSPENDED",
                  mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
                  temperatureF, humidityINT, pressureINT);
 
@@ -271,7 +271,7 @@ bool loginAPRS()
                         return true;
                     }
                     //服务器已满
-                    else if (line.indexOf("# Server full") != -1 || line.indexOf("# Port full") != -1)
+                    else if (line.indexOf("Server full") != -1 || line.indexOf("Port full") != -1)
                     {
                         DBGPRINTLN("服务器已负荷已满，稍后重试");
                         return false;
