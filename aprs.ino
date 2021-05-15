@@ -307,7 +307,7 @@ bool loginAPRS()
 void voltageLOW()
 {
 #ifndef DEBUG_MODE
-    voltage = 4.11f * analogRead(A0) / 1024; //读取并计算电池电压
+    voltage = 4.132f * analogRead(A0) / 1024; //读取并计算电池电压
     if (voltage < 3.0f)                      //如果电压小于3.0V，直接休眠60分钟
     {
         digitalWrite(LED_BUILTIN, 1); //关灯
