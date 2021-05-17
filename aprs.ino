@@ -1,15 +1,20 @@
-/*
-   
-    Esp8266-MWS (Esp8266 Mini Weather Station)
-
-    bg4uvr @ 2021.5
-
+/*  
+    Esp8266-MWS     (Esp8266 Mini Weather Station)
+                                bg4uvr @ 2021.5
 */
 
 //#define DEBUG_MODE //调试模式时不把语句发往服务器
 //#define EEPROM_CLEAR //调试时清除EEPROM
-//#define DHT11 //使用DHT11传感器
-#define AHT20 //使用AHT20传感器
+
+//包含头文件
+#include <ESP8266WiFi.h>
+#include <Wire.h>
+#include <Time.h>
+#include <WiFiManager.h>
+#include <Adafruit_BMP280.h>
+#include <EEPROM.h>
+#include <ArduinoOTA.h>
+#include <Adafruit_AHTX0.h>
 
 //判断到已连接调试主机时，将把调试消息发往主机
 #define DBGPRINT(x)             \
@@ -20,34 +25,27 @@
     if (client_dbg.connected()) \
         client_dbg.println(x);
 
-//包含头文件
-#include <ESP8266WiFi.h>
-#include <Wire.h>
-#include <Time.h>
-#include <WiFiManager.h>
-#include <Adafruit_BMP280.h>
-#include <EEPROM.h>
-#include <ArduinoOTA.h>
-#ifdef DHT11
-#include <DHTesp.h>
-#endif
-#ifdef AHT20
-#include <Adafruit_AHTX0.h>
-#endif
-
 //系统状态枚举
-enum sys_mode_t
+typedef enum
 {
-    sys_FAIL,      //非法状态
-    sys_CFG,       //配置状态
-    sys_RUN,       //正常状态
-    sys_SLEEP,     //休眠状态
-    sys_RUN2SLEEP, //正常转为休眠状态
-    sys_SLEEP2RUN, //休眠转为正常状态
-};
+    SYS_FAIL,      //非法状态
+    SYS_CFG,       //配置状态
+    SYS_RUN,       //正常状态
+    SYS_SLEEP,     //休眠状态
+    SYS_RUN2SLEEP, //正常转为休眠状态
+    SYS_SLEEP2RUN, //休眠转为正常状态
+} sys_mode_t;
+
+//语言枚举
+typedef enum
+{
+    CN,
+    EN,
+    OTHER,
+} language_t;
 
 //配置数据结构
-struct cfg_t
+typedef struct
 {
     char aprs_server_addr[26];  //APRS服务器地址 26
     uint16_t aprs_server_port;  //APRS服务器端口 2
@@ -62,15 +60,18 @@ struct cfg_t
     float lon;                  //经度 4
     float lat;                  //纬度 4
     sys_mode_t sysmode;         //系统状态 4
+    language_t language;        //语言 4
+    uint8_t pin_sda;            //SDA脚
+    uint8_t pin_scl;            //SCL脚
     uint32_t crc;               //校验值 4
-};
+} cfg_t;
 
 //系统全局变量
 cfg_t mycfg;                        //系统配置参数
 WiFiClient client_aprs, client_dbg; //实例化aprs服务器连接和调试连接
 float voltage;                      //电池电压
-uint16_t sleepsec;                  //下次工作延时
 uint32_t last_send;                 //上一次发送时刻
+uint16_t sleepsec;                  //下次工作延时
 char msgbuf[150] = {0};             //消息格式化缓存
 
 //CRC32校验程序
@@ -133,7 +134,6 @@ bool read_bmp280(float *temperature, float *pressure)
     return true;
 }
 
-#ifdef AHT20
 //读取AHT20
 bool read_aht20(float *temperature, float *humidity)
 {
@@ -154,31 +154,13 @@ bool read_aht20(float *temperature, float *humidity)
     DBGPRINTLN("AHT20读取成功");
     return true;
 }
-#endif
-
-#ifdef DHT11
-//读取DHT11
-bool read_dht11(float *temperature, float *humidity)
-{
-    DHTesp dht; //DHT11实例
-    dht.setup(13, DHTesp::DHT11);
-    DBGPRINTLN("正在读取DHT11传感器");
-    *humidity = dht.getHumidity();
-
-    if (dht.getStatus() == dht.ERROR_NONE)
-    {
-        DBGPRINTLN("DHT11读取成功");
-        return true;
-    }
-    else
-    {
-        DBGPRINTLN("DHT11读取失败");
-        return false;
-    }
-}
-#endif
 
 //读取传感器并发送一次数据
+/*
+TODO：
+1、温度数值由两种传感器来算数平方根计算得出
+2、分别判断两种传感器读取状态，失败状态设置相关参数为 点 或 空格
+*/
 void send_data()
 {
     float temperatureHUM, humidity, temperatureBMP, pressure; //保存湿传感器的温度温度度，BMP280的温度、气压的浮点变量
@@ -186,12 +168,7 @@ void send_data()
 
     bool bmpRES = read_bmp280(&temperatureBMP, &pressure); //读取BMP280
 
-#ifdef AHT20
     bool hRES = read_aht20(&temperatureHUM, &humidity); //读取AHT20温度湿度
-#endif
-#ifdef DHT11
-    bool hRES = read_dht11(&temperatureHUM, &humidity); //读取DHT11温度湿度
-#endif
 
     if (hRES) //湿度读取成功
     {
@@ -218,13 +195,13 @@ void send_data()
     }
 
     //运行模式发送的语句
-    if (mycfg.sysmode == sys_RUN) //3153.47N/12106.86E
+    if (mycfg.sysmode == SYS_RUN) //3153.47N/12106.86E
         snprintf(msgbuf, sizeof(msgbuf),
                  "%s-%d>APUVR,qAC,:=%0.2f%c/%0.2f%c_c...s...g...t%03dh%02db%05dbattery:%0.2fV, interval:%dmins",
                  mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
                  temperatureF, humidityINT, pressureINT, voltage, sleepsec / 60);
     //休眠前最后发送的语句
-    else if (mycfg.sysmode == sys_RUN2SLEEP)
+    else if (mycfg.sysmode == SYS_RUN2SLEEP)
         snprintf(msgbuf, sizeof(msgbuf),
                  "%s-%d>APUVR,qAC,:=%0.2f%c/%0.2f%c_c...s...g...t%03dh%02db%05dBATTTERY TOO LOW, SYSTEM　SUSPENDED",
                  mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
@@ -308,7 +285,7 @@ void voltageLOW()
 {
 #ifndef DEBUG_MODE
     voltage = 4.132f * analogRead(A0) / 1024; //读取并计算电池电压
-    if (voltage < 3.0f)                      //如果电压小于3.0V，直接休眠60分钟
+    if (voltage < 3.0f)                       //如果电压小于3.0V，直接休眠60分钟
     {
         digitalWrite(LED_BUILTIN, 1); //关灯
         ESP.deepSleep((uint32_t)60 * 60 * 1000 * 1000);
@@ -356,6 +333,29 @@ void eeprom_save()
     EEPROM.commit(); //提交数据
     EEPROM.end();    //写入FLASH
 }
+
+/*
+TODO:
+1、更改配置命令格式，类型linux命令
+2、首次初始化配置参数时，除呼号、密码、经纬度外，其他参数均设置默认参数。
+3、初始配置时，增加语言选择（配置参数增加语言配置）
+
+    cfg [option]
+
+    -cs 
+    -pw  
+    -lon    12106.00 
+    -lat    3153.00 
+    -ss 13 
+    -sa china.aprs2.net 
+    -sp 14580 
+    -la 192.168.1.125 
+    -la 14580 
+    -sv 3.4 
+    -min_t  600 
+    -max_t  1200
+    -langues    CN
+*/
 
 //系统配置程序
 void set_cfg()
@@ -477,7 +477,7 @@ void set_cfg()
     else
     {
         mycfg = read_cfg;        //保存配置数据
-        mycfg.sysmode = sys_RUN; //更改系统状态为运行状态
+        mycfg.sysmode = SYS_RUN; //更改系统状态为运行状态
         eeprom_save();           //保存配置数据
         client_dbg.println("设置参数已保存");
         client_dbg.println("请注意：此处无法准确检查您所设定参数的正确性，您需要根据运行结果来自行确认是否正确无误！");
@@ -525,7 +525,7 @@ void setup()
 
     //校验配置数据（如果校验失败，进入配置模式）
     if (crc32((uint8_t *)&mycfg, sizeof(mycfg) - 4) != mycfg.crc)
-        mycfg.sysmode = sys_CFG;
+        mycfg.sysmode = SYS_CFG;
 
     //校验成功后，根据当前电压状态来确定系统运行模式
     else
@@ -533,13 +533,13 @@ void setup()
         //如果电压正常
         if (voltage >= mycfg.suspend_voltage)
         {
-            if (mycfg.sysmode != sys_RUN)      //如果不是运行状态
-                mycfg.sysmode = sys_SLEEP2RUN; //设置状态为“休眠 -> 运行”状态
+            if (mycfg.sysmode != SYS_RUN)      //如果不是运行状态
+                mycfg.sysmode = SYS_SLEEP2RUN; //设置状态为“休眠 -> 运行”状态
         }
 
         //如果电压低于设定值
-        else if (mycfg.sysmode == sys_RUN) //并且还是是运行状态
-            mycfg.sysmode = sys_SLEEP2RUN; //设置状态为“运行 -> 休眠”状态
+        else if (mycfg.sysmode == SYS_RUN) //并且还是是运行状态
+            mycfg.sysmode = SYS_SLEEP2RUN; //设置状态为“运行 -> 休眠”状态
     }
 }
 
@@ -585,35 +585,35 @@ void loop()
     switch (mycfg.sysmode)
     {
         //休眠转正常
-    case sys_SLEEP2RUN:
-        mycfg.sysmode = sys_RUN; //设置为运行模式
+    case SYS_SLEEP2RUN:
+        mycfg.sysmode = SYS_RUN; //设置为运行模式
         eeprom_save();           //保存配置数据
 
         //正常状态
-    case sys_RUN:
+    case SYS_RUN:
         sleepsec = mycfg.min_send_interval + (4.2f - voltage) * (mycfg.max_send_interval - mycfg.min_send_interval) / (4.2f - mycfg.suspend_voltage); //计算唤醒时间
         break;
 
         //正常转休眠
-    case sys_RUN2SLEEP:
-        mycfg.sysmode = sys_SLEEP; //设置为运行模式
+    case SYS_RUN2SLEEP:
+        mycfg.sysmode = SYS_SLEEP; //设置为运行模式
         eeprom_save();             //保存配置数据
 
         //低电休眠
-    case sys_SLEEP:
+    case SYS_SLEEP:
         sleepsec = 60 * 60; //60分钟后唤醒
         break;
 
         //非法状态以及其他任何不确定的状态，都进入配置模式
-    case sys_FAIL:
+    case SYS_FAIL:
     default:
-        mycfg.sysmode = sys_CFG;
+        mycfg.sysmode = SYS_CFG;
         break;
     }
 
     //数据处理
     //配置状态
-    if (mycfg.sysmode == sys_CFG)
+    if (mycfg.sysmode == SYS_CFG)
     {
         //除非电压过低，不然一直尝试连接默认配置服务器地址
         while (!client_dbg.connect("192.168.1.125", 14580))
@@ -628,7 +628,7 @@ void loop()
         client_dbg.println("\n系统配置数据校验失败，请发送配置命令重新配置系统！");
 
         //此处解析配置命令，直到配置成功转为运行状态
-        while (client_dbg.connected() && mycfg.sysmode != sys_RUN)
+        while (client_dbg.connected() && mycfg.sysmode != SYS_RUN)
             freeloop();
     }
 
