@@ -219,9 +219,9 @@ bool loginAPRS()
                     String line = client_aprs.readStringUntil('\n'); //获取字符串
                     DBGPRINTLN(line);                                //把字符串传给串口
 
-                    //语句含有 aprsc 或 javAPRSSrvr ，说明已经连接到服务器，开始登录
-                    if (line.indexOf("aprsc") != -1 ||
-                        line.indexOf("javAPRSSrvr") != -1)
+                    //如果已经连接到服务器，则开始登录
+                    if (line.indexOf("aprsc") != -1 ||     //aprsc服务器
+                        line.indexOf("javAPRSSrvr") != -1) //javAPRSSrvr服务器
                     {
                         DBGPRINTLN("正在登录ARPS服务器...");
                         sprintf(msgbuf, "user %s-%s pass %d vers Esp8266-MWS 0.1 filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
@@ -266,7 +266,7 @@ bool loginAPRS()
         }
     } while (++retrycnt < 5); //5次都未能成功连接服务器
 
-    DBGPRINTLN("\n错误：连接APRS失败次数过多，已退出重试");
+    DBGPRINTLN("\n错误：连续5次都未能成功连接APRS服务器，将休眠1分钟后再重试");
     return false;
 }
 
