@@ -167,28 +167,25 @@ void send_data()
     //BMP280读取成功
     if (bmpRES)
     {
-        snprintf(temperatureS, sizeof(temperatureS), "%03d", (int)(temperatureBMP * 9 / 5 + 32)); //保存温度字符串
-        snprintf(pressureS, sizeof(pressureS), "%05d", (int)(pressure / 10));                     //保存气压字符串
-#ifdef DEBUG_MODE
-        client_dbg.printf("\nbmp280温度:%02f\tbmp280气压:%02f\t", temperatureBMP, pressure);
-#endif
+        snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)(temperatureBMP * 9 / 5 + 32)); //保存温度字符串
+        snprintf(pressureS, sizeof(pressureS), "%05d", (int)(pressure / 10));                        //保存气压字符串
+        if (client_dbg.connected())
+            client_dbg.printf("\nbmp280温度:%0.2f\tbmp280气压:%0.2f\n", temperatureBMP, pressure);
     }
     //AHT20读取成功
     if (ahtRES)
     {
-        snprintf(temperatureS, sizeof(temperatureS), "%03d", (int)(temperatureAHT * 9 / 5 + 32)); //保存温度字符串
-        snprintf(humidityS, sizeof(humidityS), "%02d", (int)humidity);                            //保存湿度字符串
-#ifdef DEBUG_MODE
-        client_dbg.printf("aht0温度:%02f\taht20湿度:%02f\t", temperatureAHT, humidity);
-#endif
+        snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)(temperatureAHT * 9 / 5 + 32)); //保存温度字符串
+        snprintf(humidityS, sizeof(humidityS), "%02d", (int)humidity);                               //保存湿度字符串
+        if (client_dbg.connected())
+            client_dbg.printf("aht0温度:%0.2f\taht20湿度:%0.2f\n", temperatureAHT, humidity);
     }
     //如果BMP280和AHT20均读取成功，那么平均两个传感器的温度
     if (ahtRES && bmpRES)
     {
-        snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8)(sqrtf(powf(temperatureAHT, 2) + powf(temperatureBMP, 2) * 9 / 5 + 32)));
-#ifdef DEBUG_MODE
-        client_dbg.printf("两传感器平均温度:%02f\n", sqrtf(powf(temperatureAHT, 2) + powf(temperatureBMP, 2) * 9 / 5 + 32));
-#endif
+        snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)((temperatureAHT + temperatureBMP) / 2 * 9 / 5 + 32));
+        if (client_dbg.connected())
+            client_dbg.printf("两传感器平均温度:%0.2f\n", (temperatureAHT + temperatureBMP) / 2);
     }
 
     //运行模式发送的语句
@@ -249,9 +246,7 @@ bool loginAPRS()
                     else if (line.indexOf("unverified") != -1)
                     {
                         DBGPRINTLN("呼号或验证码不正确，请重新配置");
-                        mycfg.sysmode = SYS_CFG;
-                        eeprom_save();
-                        return false;
+                        return true; //返回成功是为了不去频繁重试
                     }
                     //5次收到消息都不是预期的内容
                     if (++recv_cnt > 5)
@@ -614,12 +609,8 @@ void loop()
 
                     //如果登录发送数据失败
                     if (!loginAPRS())
-                    {
-                        if (mycfg.sysmode == SYS_CFG) //如果系统模式变为配置模式（由验证失败引起），立即重启
-                            ESP.reset();
-                        else //延迟60秒重试
-                            sleepsec = 60;
-                    }
+                        sleepsec = 60;
+
                     client_aprs.stop();   //关闭已经创建的连接
                     last_send = millis(); //保存最后发送的时间
 
@@ -627,8 +618,8 @@ void loop()
                     while (millis() - last_send < sleepsec * 1000 && client_dbg.connected())
                         freeloop();
                 }
-                digitalWrite(LED_BUILTIN, 1);                                             //关灯
-                ESP.deepSleep((uint64_t)sleepsec * 1000 * 1000 - (millis() - last_send)); //调试连接断开后立刻休眠
+                digitalWrite(LED_BUILTIN, 1);                                               //关灯
+                ESP.deepSleep((uint64_t)(sleepsec * 1000 - (millis() - last_send)) * 1000); //调试连接断开后立刻休眠
             }
             //没能连接到调试服务器
             else
