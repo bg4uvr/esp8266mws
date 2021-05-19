@@ -168,7 +168,7 @@ void send_data()
     if (bmpRES)
     {
         snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)(temperatureBMP * 9 / 5 + 32)); //保存温度字符串
-        snprintf(pressureS, sizeof(pressureS), "%05d", (int)(pressure / 10));                        //保存气压字符串
+        snprintf(pressureS, sizeof(pressureS), "%05d", (uint16_t)(pressure / 10));                   //保存气压字符串
         if (client_dbg.connected())
             client_dbg.printf("\nbmp280温度:%0.2f\tbmp280气压:%0.2f\n", temperatureBMP, pressure);
     }
@@ -176,14 +176,14 @@ void send_data()
     if (ahtRES)
     {
         snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)(temperatureAHT * 9 / 5 + 32)); //保存温度字符串
-        snprintf(humidityS, sizeof(humidityS), "%02d", (int)humidity);                               //保存湿度字符串
+        snprintf(humidityS, sizeof(humidityS), "%02d", (uint8_t)humidity);                           //保存湿度字符串
         if (client_dbg.connected())
             client_dbg.printf("aht0温度:%0.2f\taht20湿度:%0.2f\n", temperatureAHT, humidity);
     }
     //如果BMP280和AHT20均读取成功，那么平均两个传感器的温度
     if (ahtRES && bmpRES)
     {
-        snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)((temperatureAHT + temperatureBMP) / 2 * 9 / 5 + 32));
+        snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)(((temperatureAHT + temperatureBMP) / 2) * 9 / 5 + 32));
         if (client_dbg.connected())
             client_dbg.printf("两传感器平均温度:%0.2f\n", (temperatureAHT + temperatureBMP) / 2);
     }
@@ -228,8 +228,8 @@ bool loginAPRS()
                         client_aprs.println(msgbuf); //发送登录语句
                         DBGPRINTLN(msgbuf);
                     }
-                    //登陆验证成功
-                    else if (line.indexOf(" verified") != -1)
+                    //登陆验证成功或者失败都发送数据（失败“unverified”也包含“verified”，验证失败也可发送数据，但会显示未验证）
+                    else if (line.indexOf("verified") != -1)
                     {
                         DBGPRINTLN("APRS服务器登录成功");
                         send_data(); //发送数据
@@ -242,12 +242,7 @@ bool loginAPRS()
                         DBGPRINTLN("服务器已负荷已满，稍后重试");
                         return false;
                     }
-                    //登陆验证失败
-                    else if (line.indexOf("unverified") != -1)
-                    {
-                        DBGPRINTLN("呼号或验证码不正确，请重新配置");
-                        return true; //返回成功是为了不去频繁重试
-                    }
+
                     //5次收到消息都不是预期的内容
                     if (++recv_cnt > 5)
                     {
@@ -291,7 +286,7 @@ void dispsysinfo()
     client_dbg.println("\n\
 配置命令格式说明：\n\
 \n\
-    cfg -c callsign -w password -o lon -a lat [option]\n\
+    cfg -c callsign -w password -o lon -a lat -s serveradd [其他可选参数]\n\
 \n\
     参数    含义            格式                说明\n\
 \n\
