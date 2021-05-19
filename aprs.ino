@@ -553,7 +553,7 @@ void setup()
 
 #ifdef DEBUG_MODE
 #ifdef EEPROM_CLEAR
-    //清除EEPROM
+    //调试时用于清除EEPROM设置数据
     for (uint8_t i = 0; i < 128; i++)
         EEPROM.write(i, 0xff);
     EEPROM.commit();
