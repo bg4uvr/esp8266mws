@@ -17,6 +17,9 @@
 #include <Adafruit_AHTX0.h>
 #include <unistd.h>
 
+//ADC模式设置为测量电源模式
+ADC_MODE(ADC_VCC);
+
 //判断到已连接调试主机时，将把调试消息发往主机
 #define DBGPRINT(x)             \
     if (client_dbg.connected()) \
@@ -505,8 +508,8 @@ void set_cfg()
 void voltageLOW()
 {
 #ifndef DEBUG_MODE
-    voltage = 4.20f * analogRead(A0) / 1023; //读取并计算电池电压
-    if (voltage < 3.0f)                      //如果电压小于3.0V，直接休眠60分钟
+    voltage = ESP.getVcc() / 1000;
+    if (voltage < 3.0f) //如果电压小于3.0V，直接休眠60分钟
     {
         digitalWrite(LED_BUILTIN, 1); //关灯
         ESP.deepSleep((uint32_t)60 * 60 * 1000 * 1000);
