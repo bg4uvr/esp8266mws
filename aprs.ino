@@ -354,7 +354,7 @@ void dispset()
 //配置数据初始化
 void cfg_init()
 {
-    mycfg.stop_voltage = 3.3f;
+    mycfg.stop_voltage = 3.2f;
     mycfg.restart_voltage = 3.5f;
     mycfg.lon = 0.0f;
     mycfg.lat = 0.0f;
@@ -440,10 +440,10 @@ void set_cfg()
             mycfg.debug_server_port = atoi(optarg);
             break;
         case 'v':
-            mycfg.stop_voltage = atoi(optarg);
+            mycfg.stop_voltage = atof(optarg);
             break;
         case 'r':
-            mycfg.restart_voltage = atoi(optarg);
+            mycfg.restart_voltage = atof(optarg);
             break;
         case 'n':
             mycfg.min_send_interval = atoi(optarg);
