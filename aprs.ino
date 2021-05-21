@@ -3,7 +3,7 @@
                                 bg4uvr @ 2021.5
 */
 
-//#define DEBUG_MODE //调试模式时不把语句发往服务器
+#define DEBUG_MODE //调试模式时不把语句发往服务器
 //#define EEPROM_CLEAR //调试时清除EEPROM
 
 //包含头文件
@@ -64,7 +64,7 @@ typedef struct
     char debug_server_addr[26]; //调试主机地址 26
     char callsign[8];           //呼号 8
     char ssid[4];               //SSID 4
-    sys_mode_t sysmode;         //系统状态 4
+    sys_mode_t sysstate;        //系统状态 4
     language_t language;        //语言 4
 } cfg_t;
 
@@ -129,7 +129,11 @@ bool read_bmp280(float *temperature, float *pressure)
     Wire.begin(12, 14); //重定义I2C端口（SDA、SCL）
     if (!bmp.begin())   //if (!bmp.begin(BMP280_ADDRESS_ALT))1818
     {
-        DBGPRINTLN("BMP280读取失败");
+        const char *msg1[] = {
+            "BMP280读取失败",
+            "BMP280 read failed",
+        };
+        DBGPRINTLN(msg1[mycfg.language]);
         return false;
     }
     //设置BMP280采样参数
@@ -140,7 +144,11 @@ bool read_bmp280(float *temperature, float *pressure)
                     Adafruit_BMP280::STANDBY_MS_1);
     *temperature = bmp.readTemperature();
     *pressure = bmp.readPressure();
-    DBGPRINTLN("BMP280读取成功");
+    const char *msg2[] = {
+        "BMP280读取成功",
+        "BMP280 read successfully",
+    };
+    DBGPRINTLN(msg2[mycfg.language]);
     return true;
 }
 
@@ -149,11 +157,19 @@ bool read_aht20(float *temperature, float *humidity)
 {
     sensors_event_t humAHT, tempAHT;
     Adafruit_AHTX0 aht;
-    DBGPRINTLN("正在读取AHT20传感器");
+    const char *msg[] = {
+        "正在读取AHT20传感器",
+        "Reading the AHT20 sensor",
+    };
+    DBGPRINTLN(msg[mycfg.language]);
     Wire.begin(12, 14); //重定义I2C端口（SDA、SCL）
     if (!aht.begin())
     {
-        DBGPRINTLN("AHT20读取失败");
+        const char *msg1[] = {
+            "AHT20读取失败",
+            "AHT20 read failed",
+        };
+        DBGPRINTLN(msg1[mycfg.language]);
         return false;
     }
 
@@ -161,7 +177,11 @@ bool read_aht20(float *temperature, float *humidity)
 
     *temperature = tempAHT.temperature;
     *humidity = humAHT.relative_humidity;
-    DBGPRINTLN("AHT20读取成功");
+    const char *msg2[] = {
+        "AHT20读取成功",
+        "AHT20 read successfully",
+    };
+    DBGPRINTLN(msg2[mycfg.language]);
     return true;
 }
 
@@ -182,7 +202,19 @@ void send_data()
         snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)(temperatureBMP * 9 / 5 + 32)); //保存温度字符串
         snprintf(pressureS, sizeof(pressureS), "%05d", (uint16_t)(pressure / 10));                   //保存气压字符串
         if (client_dbg.connected())
-            client_dbg.printf("\nbmp280温度:%0.2f\tbmp280气压:%0.2f\n", temperatureBMP, pressure);
+        {
+            switch (mycfg.language)
+            {
+            case CN:
+                client_dbg.printf("\nbmp280 :%0.2f\tbmp280气压:%0.2f\n", temperatureBMP, pressure);
+                break;
+            case EN:
+                client_dbg.printf("\nbmp280 temperature:%0.2f\tbmp280 pressure:%0.2f\n", temperatureBMP, pressure);
+                break;
+            default:
+                break;
+            }
+        }
     }
     //AHT20读取成功
     if (ahtRES)
@@ -190,14 +222,36 @@ void send_data()
         snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)(temperatureAHT * 9 / 5 + 32)); //保存温度字符串
         snprintf(humidityS, sizeof(humidityS), "%02d", (uint8_t)humidity);                           //保存湿度字符串
         if (client_dbg.connected())
-            client_dbg.printf("aht0温度:%0.2f\taht20湿度:%0.2f\n", temperatureAHT, humidity);
+        {
+            switch (mycfg.language)
+            {
+            case CN:
+                client_dbg.printf("aht0温度:%0.2f\taht20湿度:%0.2f\n", temperatureAHT, humidity);
+                break;
+            case EN:
+                client_dbg.printf("aht0 temperature:%0.2f\taht20 humidity:%0.2f\n", temperatureAHT, humidity);
+                break;
+            default:
+                break;
+            }
+        }
     }
     //如果BMP280和AHT20均读取成功，那么平均两个传感器的温度
     if (ahtRES && bmpRES)
     {
         snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)(((temperatureAHT + temperatureBMP) / 2) * 9 / 5 + 32));
         if (client_dbg.connected())
-            client_dbg.printf("两传感器平均温度:%0.2f\n", (temperatureAHT + temperatureBMP) / 2);
+            switch (mycfg.language)
+            {
+            case CN:
+                client_dbg.printf("两传感器平均温度:%0.2f\n", (temperatureAHT + temperatureBMP) / 2);
+                break;
+            case EN:
+                client_dbg.printf("Average temperature of two sensors:%0.2f\n", (temperatureAHT + temperatureBMP) / 2);
+                break;
+            default:
+                break;
+            }
     }
 
     //运行模式发送的语句
@@ -217,12 +271,20 @@ void send_data()
 bool loginAPRS()
 {
     uint8_t retrycnt = 0;
-    DBGPRINTLN("正在连接APRS服务器");
+    const char *msg[] = {
+        "正在连接APRS服务器",
+        "Connecting to the APRS server",
+    };
+    DBGPRINTLN(msg[mycfg.language]);
     do
     {
         if (client_aprs.connect(mycfg.aprs_server_addr, mycfg.aprs_server_port))
         {
-            DBGPRINTLN("APRS服务器已连接");
+            const char *msg1[] = {
+                "APRS服务器已连接",
+                "The APRS server is connected",
+            };
+            DBGPRINTLN(msg1[mycfg.language]);
             do
             {
                 uint8_t recv_cnt = 0;
@@ -235,7 +297,11 @@ bool loginAPRS()
                     if (line.indexOf("aprsc") != -1 ||     //aprsc服务器
                         line.indexOf("javAPRSSrvr") != -1) //javAPRSSrvr服务器
                     {
-                        DBGPRINTLN("正在登录ARPS服务器...");
+                        const char *msg2[] = {
+                            "正在登录ARPS服务器...",
+                            "Logging on to the ARPS server...",
+                        };
+                        DBGPRINTLN(msg2[mycfg.language]);
                         sprintf(msgbuf, "user %s-%s pass %d vers Esp8266-MWS 0.1 filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句
                         DBGPRINTLN(msgbuf);
@@ -243,7 +309,11 @@ bool loginAPRS()
                     //登陆验证成功或者失败都发送数据（失败“unverified”也包含“verified”，验证失败也可发送数据，但会显示未验证）
                     else if (line.indexOf("verified") != -1)
                     {
-                        DBGPRINTLN("APRS服务器登录成功");
+                        const char *msg3[] = {
+                            "APRS服务器登录成功",
+                            "APRS server login successful",
+                        };
+                        DBGPRINTLN(msg3[mycfg.language]);
                         send_data(); //发送数据
                         return true;
                     }
@@ -251,14 +321,22 @@ bool loginAPRS()
                     else if (line.indexOf("Server full") != -1 ||
                              line.indexOf("Port full") != -1)
                     {
-                        DBGPRINTLN("服务器已负荷已满，稍后重试");
+                        const char *msg4[] = {
+                            "服务器已负荷已满，将稍后重试",
+                            "The server is full and will try again later",
+                        };
+                        DBGPRINTLN(msg4[mycfg.language]);
                         return false;
                     }
 
                     //5次收到消息都不是预期的内容
                     if (++recv_cnt > 5)
                     {
-                        DBGPRINTLN("错误：没能从服务器接收到预期类型的数据");
+                        const char *msg5[] = {
+                            "错误：没能从服务器接收到预期类型的数据",
+                            "Error: Failed to receive expected type of data from server",
+                        };
+                        DBGPRINTLN(msg5[mycfg.language]);
                         return false;
                     };
                 }
@@ -267,7 +345,11 @@ bool loginAPRS()
                     delay(2000);
             } while (++retrycnt < 5); //10秒内未收到数据认为超时
 
-            DBGPRINTLN("错误：接收APRS服务器数据超时");
+            const char *msg6[] = {
+                "错误：接收APRS服务器数据超时",
+                "Error: Receive APRS server data timeout",
+            };
+            DBGPRINTLN(msg6[mycfg.language]);
             return false;
         }
         //连接APRS服务器失败
@@ -278,7 +360,11 @@ bool loginAPRS()
         }
     } while (++retrycnt < 5); //5次都未能成功连接服务器
 
-    DBGPRINTLN("\n错误：连续5次都未能成功连接APRS服务器，将休眠1分钟后再重试");
+    const char *msg7[] = {
+        "\n5次未能成功连接APRS服务器，将休眠1分钟后再重试",
+        "\nError: Failing to connect to APRS server for 5 times, will sleep for 1 minute and then try again",
+    };
+    DBGPRINTLN(msg7[mycfg.language]);
     return false;
 }
 
@@ -286,16 +372,25 @@ bool loginAPRS()
 void dispsysinfo()
 {
     //显示系统名称
-    client_dbg.println("\nEsp8266MWS 迷你气象站 ( \"MWS\" -> Mini Weather Station )");
+    client_dbg.println("\nEsp8266MWS 迷你气象站");
+    client_dbg.println("\nEsp8266MWS Mini Weather Station");
+
     //显示设备当前局域网IP地址
-    client_dbg.print("\n当前设备IP地址为：");
+    const char *msg[] = {
+        "\n当前设备IP地址为：",
+        "\nThe current device IP address is:",
+    };
+    DBGPRINTLN(msg[mycfg.language]);
     client_dbg.println(WiFi.localIP());
 
     //显示当前配置
     dispset();
 
     //显示提示消息
-    client_dbg.println("\n\
+    switch (mycfg.language)
+    {
+    case CN:
+        client_dbg.println("\n\
 配置命令格式说明：\n\
 \n\
     cfg -c callsign -w password -o lon -a lat -s serveradd [其他可选参数]\n\
@@ -322,48 +417,129 @@ void dispsysinfo()
 \n\
 配置命令示例:\n\
     cfg -c YOURCALL -w 12345 -d 10 -o 12100.00 -a 3100.00 -s xxx.aprs2.net\n\
+\n\
 更改语言 (Change language)：\n\
     cfg -l n\n\
     n = 0 中文\n\
       = 1 English\n\
       = 2 xxx (等待你来完成 Waiting for you to finish~)\n\
 ");
+        break;
+    case EN:
+        client_dbg.println("\n\
+Format description of configuration command:\n\
+\n\
+    cfg -c callsign -w password -o lon -a lat -s serveradd [Other optional parameters]\n\
+\n\
+ parameter  means               sample              instructions\n\
+\n\
+Required parameters:\n\
+    -c      callsign            BGnXXX              Call sign of amateur radio station\n\
+    -w      Verification code   12345               The origin of this CAPTCHA is not explained\n\
+    -o      longitude           12106.00            Format：dddmm.mm，E plus and W minus\n\
+    -a      latitude            3153.00             Format：ddmm.mm，N plus and S minus\n\
+    -s      APRS server address xxx.aprs2.net       Don't explain\n\
+\n\
+Optional parameters:\n\
+    -d      SSID                13                  SSID(New rule to support 2-bit letters)\n\
+    -p      APRS server port    14580               don't explain\n\
+    -g      Debug host address  192.168.1.125       host Intranet IP for debugg,config,monitor\n\
+    -e      Debug host port     12345               don't explain\n\
+    -v      Stop voltage        3.2                 voltage below this value system will stop work(min:3.1v)\n\
+    -r      ReWork voltage      3.5                 voltage above this value system will rework(max:3.6v)\n\
+    -n      Min send interval   600                 Unit: Seconds (min: 300)\n\
+    -x      Max send interval   1200                Unit: Seconds (max: 1800)\n\
+    -l      Language selection  CN                  0 Chinese, 1 English\n\
+\n\
+Examples of configuration commands:\n\
+    cfg -c YOURCALL -w 12345 -d 10 -o 12100.00 -a 3100.00 -s xxx.aprs2.net\n\
+\n\
+Change language：\n\
+    cfg -l n\n\
+    n = 0 Chinese\n\
+      = 1 English\n\
+      = 2 xxx (Waiting for you to finish~)\n\
+");
+        break;
+    default:
+        break;
+    }
 }
 
 //显示配置数据
 void dispset()
 {
-    client_dbg.println("系统当前配置：");
-    client_dbg.print("aprs服务器地址:\t");
-    client_dbg.println(mycfg.aprs_server_addr);
-    client_dbg.print("aprs服务器端口:\t");
-    client_dbg.println(mycfg.aprs_server_port);
-    client_dbg.print("调试主机地址:\t");
-    client_dbg.println(mycfg.debug_server_addr);
-    client_dbg.print("调试主机端口:\t");
-    client_dbg.println(mycfg.debug_server_port);
-    client_dbg.print("呼号:\t");
-    client_dbg.println(mycfg.callsign);
-    client_dbg.print("SSID:\t");
-    client_dbg.println(mycfg.ssid);
-    client_dbg.print("APRS验证码:\t");
-    client_dbg.println(mycfg.password);
-    client_dbg.print("最小发送间隔:\t");
-    client_dbg.println(mycfg.min_send_interval);
-    client_dbg.print("最大发送间隔:\t");
-    client_dbg.println(mycfg.max_send_interval);
-    client_dbg.print("停机电压:\t");
-    client_dbg.printf("%0.2f\n", mycfg.stop_voltage);
-    client_dbg.print("重启电压:\t");
-    client_dbg.printf("%0.2f\n", mycfg.restart_voltage);
-    client_dbg.print("经度:\t");
-    client_dbg.printf("%0.2f\n", mycfg.lon);
-    client_dbg.print("纬度:\t");
-    client_dbg.printf("%0.2f\n", mycfg.lat);
-    client_dbg.print("语言设置:\t");
-    client_dbg.println(mycfg.language);
-    client_dbg.print("系统运行状态:\t");
-    client_dbg.println(mycfg.sysmode);
+    switch (mycfg.language)
+    {
+    case CN:
+        client_dbg.println("系统当前配置：");
+        client_dbg.print("aprs服务器地址:\t");
+        client_dbg.println(mycfg.aprs_server_addr);
+        client_dbg.print("aprs服务器端口:\t");
+        client_dbg.println(mycfg.aprs_server_port);
+        client_dbg.print("调试主机地址:\t");
+        client_dbg.println(mycfg.debug_server_addr);
+        client_dbg.print("调试主机端口:\t");
+        client_dbg.println(mycfg.debug_server_port);
+        client_dbg.print("呼号:\t");
+        client_dbg.println(mycfg.callsign);
+        client_dbg.print("SSID:\t");
+        client_dbg.println(mycfg.ssid);
+        client_dbg.print("APRS验证码:\t");
+        client_dbg.println(mycfg.password);
+        client_dbg.print("最小发送间隔:\t");
+        client_dbg.println(mycfg.min_send_interval);
+        client_dbg.print("最大发送间隔:\t");
+        client_dbg.println(mycfg.max_send_interval);
+        client_dbg.print("停机电压:\t");
+        client_dbg.printf("%0.2f\n", mycfg.stop_voltage);
+        client_dbg.print("重启电压:\t");
+        client_dbg.printf("%0.2f\n", mycfg.restart_voltage);
+        client_dbg.print("经度:\t");
+        client_dbg.printf("%0.2f\n", mycfg.lon);
+        client_dbg.print("纬度:\t");
+        client_dbg.printf("%0.2f\n", mycfg.lat);
+        client_dbg.print("语言设置:\t");
+        client_dbg.println(mycfg.language);
+        client_dbg.print("系统运行状态:\t");
+        client_dbg.println(mycfg.sysstate);
+        break;
+    case EN:
+        client_dbg.println("System current configuration:");
+        client_dbg.print("APRS server address:\t");
+        client_dbg.println(mycfg.aprs_server_addr);
+        client_dbg.print("APRS server port:\t");
+        client_dbg.println(mycfg.aprs_server_port);
+        client_dbg.print("Debug host address:\t");
+        client_dbg.println(mycfg.debug_server_addr);
+        client_dbg.print("Debug host port:\t");
+        client_dbg.println(mycfg.debug_server_port);
+        client_dbg.print("Callsign:\t");
+        client_dbg.println(mycfg.callsign);
+        client_dbg.print("SSID:\t");
+        client_dbg.println(mycfg.ssid);
+        client_dbg.print("APRS verification code:\t");
+        client_dbg.println(mycfg.password);
+        client_dbg.print("Min send interval:\t");
+        client_dbg.println(mycfg.min_send_interval);
+        client_dbg.print("Max send interval:\t");
+        client_dbg.println(mycfg.max_send_interval);
+        client_dbg.print("Stop work voltage:\t");
+        client_dbg.printf("%0.2f\n", mycfg.stop_voltage);
+        client_dbg.print("Rework voltage:\t");
+        client_dbg.printf("%0.2f\n", mycfg.restart_voltage);
+        client_dbg.print("Longitude:\t");
+        client_dbg.printf("%0.2f\n", mycfg.lon);
+        client_dbg.print("Latitude:\t");
+        client_dbg.printf("%0.2f\n", mycfg.lat);
+        client_dbg.print("Language:\t");
+        client_dbg.println(mycfg.language);
+        client_dbg.print("System state:\t");
+        client_dbg.println(mycfg.sysstate);
+        break;
+    default:
+        break;
+    }
 }
 
 //配置数据初始化
@@ -382,7 +558,7 @@ void cfg_init()
     strcpy(mycfg.debug_server_addr, "192.168.1.125");
     strcpy(mycfg.callsign, "NOCALL");
     strcpy(mycfg.ssid, "13");
-    mycfg.sysmode = SYS_CFG;
+    mycfg.sysstate = SYS_CFG;
     mycfg.language = CN;
     eeprom_save();
 }
@@ -396,8 +572,12 @@ void set_cfg()
 
     //获取调试服务器发来的字符串
     String line = client_dbg.readStringUntil('\n'); //每次解析到换行符
-    client_dbg.println("\n您发送的命令为：");       //命令回显
-    client_dbg.println(line);
+    const char *msg[] = {
+        "\n您发送的命令为：",
+        "\nThe command you sent is:",
+    };
+    DBGPRINTLN(msg[mycfg.language]);
+    client_dbg.println(line); //命令回显
 
     //开始解析命令字符串
     char *buf = new char[line.length() + 1]; //新建临时缓存，用于String类型转换为char[]类型
@@ -406,7 +586,11 @@ void set_cfg()
     //判断命令是否正确
     if (strncmp(buf, "cfg ", 4) != 0)
     {
-        client_dbg.println("命令格式不正确，请重新输入");
+        const char *msg1[] = {
+            "命令格式不正确，请重新输入",
+            "Command format incorrect, please retry",
+        };
+        DBGPRINTLN(msg1[mycfg.language]);
         return;
     }
 
@@ -485,43 +669,121 @@ void set_cfg()
         mycfg.lon == 0.0f ||
         mycfg.lat == 0.0f)
     {
-        client_dbg.println("有必设参数未被设置，请重新输入。（服务器地址、呼号、密码、经度、纬度这5项数据为必设参数）");
+        const char *msg2[] = {
+            "有必设参数未被设置，请重新输入。（服务器地址、呼号、密码、经度、纬度这5项数据为必设参数）",
+            "Required parameters are not set. Please reenter.(Server address, call sign, password, longitude and latitude are required parameters)",
+        };
+        DBGPRINTLN(msg2[mycfg.language]);
         return;
     }
 
     //判断参数是否合法
     if (((String)mycfg.callsign).length() < 4 || (((String)mycfg.callsign).length() > 6))
-        client_dbg.println("呼号长度小于4位或大于6位");
+    {
+        const char *msg3[] = {
+            "呼号长度小于4位或大于6位",
+            "Call sign length is less than 4 digits or longer than 6 digits",
+        };
+        DBGPRINTLN(msg3[mycfg.language]);
+    }
     else if (((String)mycfg.ssid).length() > 2 || ((String)mycfg.ssid).length() == 0)
-        client_dbg.println("SSID长度大于2位或是等于0");
+    {
+        const char *msg4[] = {
+            "SSID 长度大于2位或是等于0",
+            "SSID length longer than 2 digits or equal to 0",
+        };
+        DBGPRINTLN(msg4[mycfg.language]);
+    }
     else if (mycfg.min_send_interval < 300)
-        client_dbg.println("最小间隔设置值过低");
+    {
+        const char *msg5[] = {
+            "最小间隔设置值过低",
+            "The minimum interval setting is too short",
+        };
+        DBGPRINTLN(msg5[mycfg.language]);
+    }
     else if (mycfg.max_send_interval > 1800)
-        client_dbg.println("最大间隔设置值过高");
+    {
+        const char *msg6[] = {
+            "最大间隔设置值过高",
+            "The maximum interval setting is too long",
+        };
+        DBGPRINTLN(msg6[mycfg.language]);
+    }
     else if (mycfg.min_send_interval > mycfg.max_send_interval)
-        client_dbg.println("最小间隔设置值高于最大间隔设置值");
+    {
+        const char *msg7[] = {
+            "最小间隔设置值高于最大间隔设置值",
+            "The minimum interval setting value is longer than the maximum interval setting value",
+        };
+        DBGPRINTLN(msg7[mycfg.language]);
+    }
     else if (mycfg.stop_voltage < 3.1f)
-        client_dbg.println("停机电压值设置过低");
+    {
+        const char *msg8[] = {
+            "停机电压值设置过低",
+            "The stop voltage value is set too low",
+        };
+        DBGPRINTLN(msg8[mycfg.language]);
+    }
     else if (mycfg.restart_voltage > 3.6f)
-        client_dbg.println("重启动电压值设置过高");
+    {
+        const char *msg9[] = {
+            "重工作电压值设置过高",
+            "The rework voltage value is set too high",
+        };
+        DBGPRINTLN(msg9[mycfg.language]);
+    }
     else if (mycfg.stop_voltage > mycfg.restart_voltage)
-        client_dbg.println("停机电压值大于重启动电压值");
+    {
+        const char *msg10[] = {
+            "停机电压值大于重启动电压值",
+            "The stop voltage is higher than the rework voltage",
+        };
+        DBGPRINTLN(msg10[mycfg.language]);
+    }
     else if (mycfg.lon > 18000.0f || mycfg.lon < -18000.0f)
-        client_dbg.println("经度值超出范围");
+    {
+        const char *msg11[] = {
+            "经度值超出范围",
+            "Longitude value out of range",
+        };
+        DBGPRINTLN(msg11[mycfg.language]);
+    }
     else if (mycfg.lat > 9000.0f || mycfg.lat < -9000.0f)
-        client_dbg.println("纬度值超过范围");
+    {
+        const char *msg12[] = {
+            "纬度值超过范围",
+            "Latitude value out of range",
+        };
+        DBGPRINTLN(msg12[mycfg.language]);
+    }
     else if (mycfg.language < 0 || mycfg.language > LANGUAGE_NUM)
-        client_dbg.println("语言设置超出有效范围");
+    {
+        const char *msg13[] = {
+            "语言设置值超出有效范围",
+            "The language setting value is out of the valid range",
+        };
+        DBGPRINTLN(msg13[mycfg.language]);
+    }
     else
     {
         //设置成功，保存退出
-        mycfg.sysmode = SYS_RUN; //更改系统状态为运行状态
-        eeprom_save();           //保存配置数据
-        dispset();               //显示系统当前配置
-        client_dbg.println("请注意：此处无法准确检查所有参数的正确性，请自行检查确认。");
+        mycfg.sysstate = SYS_RUN; //更改系统状态为运行状态
+        eeprom_save();            //保存配置数据
+        dispset();                //显示系统当前配置
+        const char *msg14[] = {
+            "请注意：此处无法准确检查所有参数的正确性，请自行检查确认。",
+            "Please note that the correctness of all parameters cannot be checked accurately here. Please check and confirm by yourself.",
+        };
+        DBGPRINTLN(msg14[mycfg.language]);
         return;
     }
-    client_dbg.println("设置的参数设置未保存，请重新输入");
+    const char *msg15[] = {
+        "设置的参数设置未保存，请重新输入",
+        "The set parameter is not saved, please try again",
+    };
+    DBGPRINTLN(msg15[mycfg.language]);
 }
 
 //电压过低判断处理
@@ -595,15 +857,15 @@ void setup()
 void loop()
 {
     //判断当前系统状态
-    switch (mycfg.sysmode)
+    switch (mycfg.sysstate)
     {
         //运行状态
     case SYS_RUN:
         //如果电压低于设定值
         if (voltage < mycfg.stop_voltage)
         {
-            mycfg.sysmode = SYS_STOP; //转换为停止状态
-            eeprom_save();            //保存状态设置
+            mycfg.sysstate = SYS_STOP; //转换为停止状态
+            eeprom_save();             //保存状态设置
         }
         //否则正常工作
         else
@@ -661,8 +923,8 @@ void loop()
         //如果电压已经高于设定值
         if (voltage > mycfg.restart_voltage)
         {
-            mycfg.sysmode = SYS_RUN; //转换为运行状态
-            eeprom_save();           //保存状态设置
+            mycfg.sysstate = SYS_RUN; //转换为运行状态
+            eeprom_save();            //保存状态设置
         }
         //否则继续工作在停止模式
         else
@@ -685,10 +947,12 @@ void loop()
 
         //已连接到默认配置服务器，显示系统信息
         dispsysinfo();
+
         client_dbg.println("系统配置数据校验失败，已重新初始化，请发送配置命令配置系统");
+        client_dbg.println("System configuration data validation failed, has been reinitialized, please send configuration command to configure the system");
 
         //此处解析配置命令，直到配置成功转为运行状态
-        while (client_dbg.connected() && mycfg.sysmode != SYS_RUN)
+        while (client_dbg.connected() && mycfg.sysstate != SYS_RUN)
             freeloop();
         break;
     }
