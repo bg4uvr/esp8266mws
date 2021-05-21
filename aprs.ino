@@ -3,7 +3,7 @@
                                 bg4uvr @ 2021.5
 */
 
-//#define DEBUG_MODE   //调试模式时不把语句发往服务器
+//#define DEBUG_MODE //调试模式时不把语句发往服务器
 //#define EEPROM_CLEAR //调试时清除EEPROM
 
 //包含头文件
@@ -193,7 +193,7 @@ void send_data()
 
     //运行模式发送的语句
     snprintf(msgbuf, sizeof(msgbuf),
-             "%s-%s>APUVR,qAC,:=%0.2f%c/%0.2f%c_c...s...g...t%sh%sb%sbattery:%0.2fV, interval:%dmins",
+             "%s-%s>APUVR,qAC,:=%0.2f%c/%0.2f%c_c...s...g...t%sh%sb%sbattery:%0.3fV, interval:%dmins",
              mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
              temperatureS, humidityS, pressureS, voltage, sleepsec / 60);
 
@@ -407,6 +407,7 @@ void set_cfg()
     }
 
     //解析各参数
+    optind = 0; //optind 为getopt函数使用的全局变量，用于存储getopt的索引个数。此处必须清零，否则下次将无法工常工作
     int ch;
     while ((ch = getopt(cnt, cmd, "c:w:o:a:d:s:p:e:g:v:r:n:x:l")) != -1)
     {
@@ -508,7 +509,7 @@ void set_cfg()
 void voltageLOW()
 {
 #ifndef DEBUG_MODE
-    voltage = ESP.getVcc() / 1000;
+    voltage = (float)ESP.getVcc() / 1000;
     if (voltage < 3.0f) //如果电压小于3.0V，直接休眠60分钟
     {
         digitalWrite(LED_BUILTIN, 1); //关灯
@@ -526,7 +527,6 @@ void eeprom_save()
     for (uint8_t i = 0; i < sizeof(cfg_t); i++)                  //写入配置数据
         EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
     EEPROM.commit(); //提交数据
-    EEPROM.end();    //写入FLASH
 }
 
 //连接调试主机时的空闲扫描
@@ -560,7 +560,6 @@ void setup()
     for (uint8_t i = 0; i < 128; i++)
         EEPROM.write(i, 0xff);
     EEPROM.commit();
-    EEPROM.end();
 #endif
 #endif
 
