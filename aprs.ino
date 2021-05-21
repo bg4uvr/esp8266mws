@@ -41,10 +41,11 @@ typedef enum
 //语言枚举
 typedef enum
 {
-    CN,
-    EN,
-    OTHER,
+    CN = 0,
+    EN = 1,
 } language_t;
+
+#define LANGUAGE_NUM 2
 
 //配置数据结构
 typedef struct
@@ -112,13 +113,21 @@ void WiFisetup()
     }
 }
 
+void dsp(const char *msg[])
+{
+}
+
 //读取BMP280
 bool read_bmp280(float *temperature, float *pressure)
 {
     Adafruit_BMP280 bmp; //初始化BMP280实例
-    DBGPRINTLN("正在读取BMP280传感器");
+    const char *msg[] = {
+        "正在读取BMP280传感器",
+        "Reading the BMP280 sensor",
+    };
+    DBGPRINTLN(msg[mycfg.language]);
     Wire.begin(12, 14); //重定义I2C端口（SDA、SCL）
-    if (!bmp.begin())   //if (!bmp.begin(BMP280_ADDRESS_ALT))
+    if (!bmp.begin())   //if (!bmp.begin(BMP280_ADDRESS_ALT))1818
     {
         DBGPRINTLN("BMP280读取失败");
         return false;
@@ -309,10 +318,16 @@ void dispsysinfo()
     -r      重新工作电压    3.5                 电压高于此值系统重新工作（最大值3.6）\n\
     -n      最小发送间隔    600                 单位：秒（最小值300）\n\
     -x      最大发送间隔    1200                单位：秒（最大值1800）\n\
-    -l      语言选择        CN                  语言设置，本功能尚未开发\n\
+    -l      语言选择        CN                  0 中文；1 英文\n\
 \n\
 配置命令示例:\n\
-    cfg -c YOURCALL -w 12345 -d 10 -o 12100.00 -a 3100.00 -s xxx.aprs2.net\n");
+    cfg -c YOURCALL -w 12345 -d 10 -o 12100.00 -a 3100.00 -s xxx.aprs2.net\n\
+更改语言 (Change language)：\n\
+    cfg -l n\n\
+    n = 0 中文\n\
+      = 1 English\n\
+      = 2 xxx (等待你来完成 Waiting for you to finish~)\n\
+");
 }
 
 //显示配置数据
@@ -354,7 +369,7 @@ void dispset()
 //配置数据初始化
 void cfg_init()
 {
-    mycfg.stop_voltage = 3.2f;
+    mycfg.stop_voltage = 3.1f;
     mycfg.restart_voltage = 3.5f;
     mycfg.lon = 0.0f;
     mycfg.lat = 0.0f;
@@ -409,7 +424,7 @@ void set_cfg()
     //解析各参数
     optind = 0; //optind 为getopt函数使用的全局变量，用于存储getopt的索引个数。此处必须清零，否则下次将无法工常工作
     int ch;
-    while ((ch = getopt(cnt, cmd, "c:w:o:a:d:s:p:e:g:v:r:n:x:l")) != -1)
+    while ((ch = getopt(cnt, cmd, "c:w:o:a:s:d:p:e:g:v:r:n:x:l:")) != -1)
     {
         switch (ch)
         {
@@ -425,11 +440,11 @@ void set_cfg()
         case 'a':
             mycfg.lat = atof(optarg);
             break;
-        case 'd':
-            strcpy(mycfg.ssid, optarg);
-            break;
         case 's':
             strcpy(mycfg.aprs_server_addr, optarg);
+            break;
+        case 'd':
+            strcpy(mycfg.ssid, optarg);
             break;
         case 'p':
             mycfg.aprs_server_port = atoi(optarg);
@@ -452,7 +467,9 @@ void set_cfg()
         case 'x':
             mycfg.max_send_interval = atoi(optarg);
             break;
-
+        case 'l':
+            mycfg.language = (language_t)(atoi(optarg));
+            break;
         default:
             break;
         }
@@ -493,6 +510,8 @@ void set_cfg()
         client_dbg.println("经度值超出范围");
     else if (mycfg.lat > 9000.0f || mycfg.lat < -9000.0f)
         client_dbg.println("纬度值超过范围");
+    else if (mycfg.language < 0 || mycfg.language > LANGUAGE_NUM)
+        client_dbg.println("语言设置超出有效范围");
     else
     {
         //设置成功，保存退出
@@ -516,7 +535,7 @@ void voltageLOW()
         ESP.deepSleep((uint32_t)60 * 60 * 1000 * 1000);
     }
 #else
-    voltage = 4.0f; //调试时因已连接USB线，电压偏高，虚拟一个电压值
+    voltage = 3.6f; //调试时因板上ADC脚有外接电阻，电压偏低，此处虚拟一个正常范围的电压值
 #endif
 }
 
@@ -590,7 +609,10 @@ void loop()
         else
         {
             //计算工作时间间隔
-            sleepsec = mycfg.min_send_interval + (4.2f - voltage) * (mycfg.max_send_interval - mycfg.min_send_interval) / (4.2f - mycfg.stop_voltage);
+            sleepsec = mycfg.min_send_interval +
+                       ((voltage >= 4.2f)
+                            ? 0
+                            : (mycfg.max_send_interval - mycfg.min_send_interval) * (4.2f - voltage) / (4.2f - mycfg.stop_voltage));
 
             //如果连接调试服务器成功
             if (client_dbg.connect(mycfg.debug_server_addr, mycfg.debug_server_port))
@@ -602,7 +624,10 @@ void loop()
                 while (client_dbg.connected())
                 {
                     //重新计算工作时间间隔
-                    sleepsec = mycfg.min_send_interval + (4.2f - voltage) * (mycfg.max_send_interval - mycfg.min_send_interval) / (4.2f - mycfg.stop_voltage);
+                    sleepsec = mycfg.min_send_interval +
+                               ((voltage >= 4.2f)
+                                    ? 0
+                                    : (mycfg.max_send_interval - mycfg.min_send_interval) * (4.2f - voltage) / (4.2f - mycfg.stop_voltage));
 
                     //如果登录发送数据失败
                     if (!loginAPRS())
