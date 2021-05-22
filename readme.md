@@ -52,7 +52,7 @@ The English instructions at the bottom
 
 1. **供电电源**
 
-   太阳能电池接入CN3791充电模块，充电模块的输出连接锂电保护板和18650电池，保护板的输出直接接在NODEMCU板的3.3V电源和GND地址上（虽然esp8266的官方不建议锂电直接供电，但权衡利弊后我觉得这样接最合适了）。
+   太阳能电池接入CN3791充电模块，充电模块的输出连接锂电保护板和18650电池，保护板的输出直接接在NODEMCU板的3.3V电源和GND地上（虽然esp8266的官方不建议锂电直接供电，但权衡利弊后我觉得这样接最合适了）。
 
 2. **传感器**
 
@@ -78,7 +78,7 @@ The English instructions at the bottom
 
 ### ENGLISH
 
-因为我的英文不好，所以在阅读外国朋友的代码时特别麻烦，正因为如此，我特别能理解外国朋友看到中国介绍和代码注释时的感觉。所以我特别使用电脑翻译了全部的说明文字和代码的注释内容，以方便外国朋友。但我知道电脑翻译的正确性和准确性是极差的，所以英文的内容仅是无奈情况下的参考。同时也欢迎有能力的朋友能帮忙完善这些英文内容，可以通过发pull requests来更新维护，在此表示感谢~
+因为我的英文不好，所以在阅读外国朋友的代码时特别麻烦，正因为如此，我特别能理解外国朋友看到中文介绍和代码注释时的感觉。所以我特别使用电脑翻译了全部的说明文字和代码的注释内容，以方便外国朋友。但我知道电脑翻译的正确性和准确性是极差的，所以英文的内容仅是无奈情况下的参考。同时也欢迎有能力的朋友能帮忙完善这些英文内容，可以通过发pull requests来更新维护，在此表示感谢~
 
 Because my English is not good, it is very difficult for me to read the code of foreign friends. Because of this, I can understand the feeling of foreign friends when they see the Chinese introduction and code comments. So I specially use the computer to translate all the explanatory text and the code annotation content, for the convenience of foreign friends. But I know that the correctness and accuracy of computer translation is very poor, so the English content is only a helpless case of reference. We also welcome the ability of friends to help improve the English content, you can send pull requests to update maintenance, thank you~
 
@@ -141,7 +141,7 @@ Because the structure of the circuit is very simple, I will not draw it professi
 
 1. **Power supply**
 
-   The solar cell is connected to the CN3791 charging module, and the output of the charging module is connected to the lithium protection plate and the 18650 battery. The output of the protection plate is directly connected to the 3.3V power supply of the Nodemcu plate and the GND address (although ESP8266 official does not recommend direct power supply from lithium, I think this connection is the most appropriate after weighing the advantages and disadvantages).
+   The solar cell is connected to the CN3791 charging module, and the output of the charging module is connected to the lithium protection plate and the 18650 battery. The output of the protection plate is directly connected to the 3.3V power supply of the Nodemcu plate and the GND (although ESP8266 official does not recommend direct power supply from lithium, I think this connection is the most appropriate after weighing the advantages and disadvantages).
 
 2. **sensor**
 
@@ -163,5 +163,3 @@ Because the structure of the circuit is very simple, I will not draw it professi
 
 
 
-
- 
