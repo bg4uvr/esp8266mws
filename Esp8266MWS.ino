@@ -3,7 +3,7 @@
                                 bg4uvr @ 2021.5
 */
 
-#define DEBUG_MODE //调试模式时不把语句发往服务器 Do not send statements to the server while debugging mode
+//#define DEBUG_MODE //调试模式时不把语句发往服务器 Do not send statements to the server while debugging mode
 //#define EEPROM_CLEAR //调试时清除EEPROM Clear EEPROM while debugging
 
 //包含头文件
