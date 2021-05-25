@@ -275,7 +275,7 @@ void send_data()
     //运行模式发送的语句
     // Run mode to send the statement
     snprintf(msgbuf, sizeof(msgbuf),
-             "%s-%s>APUVR,qAC,:=%0.2f%c/%0.2f%c_c...s...g...t%sh%sb%sBat:%0.3fV, Int:%dmins. (by esp8266mws v0.11)",
+             "%s-%s>APUVR,qAC,:=%0.2f%c/%0.2f%c_c...s...g...t%sh%sb%sBat:%0.3fV, Int:%dmins.",
              mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
              temperatureS, humidityS, pressureS, voltage, sleepsec / 60);
 
