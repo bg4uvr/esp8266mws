@@ -22,25 +22,7 @@ The English instructions are at the bottom
 
 ### **省电**
 
-由于让ESP8266工作于休眠间隙状态，并且使用了高效的太阳能充电控制模块，~~所以它仅使用一片标称6V/1.2W的小太阳能电池板来供电（其实更小的也可以），外加一只18650锂电池来储能，基本上可以实现全候不间断工作。我的整个装置放在房子的北侧，除了夏季的清晨和傍晚，阳光都无法直射，装置只靠天空的散射光即可充分充电，即使是阴天也是如此。~~ 
-
-由于原来1.2W的太阳能板功率过大，总是把18650锂电的电压充满，全天都在4.15-4.3V之间，担心影响电池寿命，并且也过于浪费，所以今天把我太阳能电池更换成了一个很旧的更小的，并且把18650锂电也更换成了2032可充型锂电，标称容量40mAh，目前看来估计长期工作问题不大，继续考验中。今天也新拍了些图片:
-
-1. 整个系统的样子
-
-  ![](pic/4.jpg)
-
-2. 电池和太阳能板
-
-  ![](pic/5.jpg)
-
-3. 装上外壳
-
-  ![](pic/6.jpg)
-
-4. 新旧太阳能电池大小对比
-
-  ![](pic/7.jpg)
+由于让ESP8266工作于休眠间隙状态，并且使用了高效的太阳能充电控制模块，所以它仅使用一片标称6V/1.2W的小太阳能电池板来供电（其实更小的也可以），外加一只18650锂电池来储能，基本上可以实现全候不间断工作。我的整个装置放在房子的北侧，除了夏季的清晨和傍晚，阳光都无法直射，装置只靠天空的散射光即可充分充电，即使是阴天也是如此。
 
 
 ### **便宜**
@@ -166,25 +148,8 @@ This small production is my first small experiment to learn ESP8266 Arduino. It 
 
 2. ### **Save electricity**
 
-   By keeping the ESP8266 in hibernation and using a highly efficient solar charging control module, ~~it uses only a small 6V/1.2W solar panel to power it (or even smaller), plus an 18650 lithium-ion battery to store the energy, so it can operate almost continuously. My entire installation is on the north side of the house. Except in the summer mornings and evenings, there is no direct sunlight, and the device is fully charged by the scattered light from the sky, even on cloudy days.~~
+   By keeping the ESP8266 in hibernation and using a highly efficient solar charging control module, it uses only a small 6V/1.2W solar panel to power it (or even smaller), plus an 18650 lithium-ion battery to store the energy, so it can operate almost continuously. My entire installation is on the north side of the house. Except in the summer mornings and evenings, there is no direct sunlight, and the device is fully charged by the scattered light from the sky, even on cloudy days.
    
-   Because to the power of the original 1.2W solar panel is too high, the voltage of the 18650 lithium battery is always full, which is between 4.15 and 4.3V all day long. I worry that the battery life will be affected and it is too wasteful, so today I changed my solar cell into an old and smaller one, and changed the 18650 lithium battery into 2032 rechargeable lithium battery. Nominal capacity of 40mAh, it seems that the long-term work problem is not estimated, continue to test. I also took some new pictures today:
-   
-   1. The whole system
-   
-      ![](pic/4.jpg)
-   
-   2. Batteries and solar panels
-   
-      ![](pic/5.jpg)
-   
-   3. with case
-   
-      ![](pic/6.jpg)
-   
-   4. Size comparison of old and new solar cells
-   
-      ![](pic/7.jpg)
 
 
 3. ### **cheap**
