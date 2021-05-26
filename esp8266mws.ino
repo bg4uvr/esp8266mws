@@ -68,6 +68,7 @@ typedef struct
     uint16_t debug_server_port; //调试主机端口      //Debug host port
     char aprs_server_addr[26];  //APRS服务器地址    //APRS server address
     char debug_server_addr[26]; //调试主机地址      //Debugging host address
+    char usermsg[68];           //用户自定义消息    //user custom message
     char callsign[8];           //呼号              //callsign
     char ssid[4];               //SSID
     sys_mode_t sysstate;        //系统状态          //The system state
@@ -272,12 +273,22 @@ void send_data()
             }
     }
 
-    //运行模式发送的语句
-    // Run mode to send the statement
+    // 发送气象报文 Send weather messages
     snprintf(msgbuf, sizeof(msgbuf),
              "%s-%s>APUVR,qAC,:=%0.2f%c/%0.2f%c_c...s...g...t%sh%sb%sBat:%0.3fV, Int:%dmins.",
              mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
              temperatureS, humidityS, pressureS, voltage, sleepsec / 60);
+
+#ifndef DEBUG_MODE
+    client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
+#endif
+    DBGPRINTLN(msgbuf);
+
+    // 发送用户消息 send user message
+    if (strlen(mycfg.usermsg) > 0)
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,qAC,:>%s", mycfg.callsign, mycfg.ssid, mycfg.usermsg);
+    else
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,qAC,:>esp8266mws ver0.11", mycfg.callsign, mycfg.ssid);
 
 #ifndef DEBUG_MODE
     client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
@@ -439,10 +450,11 @@ void dispsysinfo()
     -p      APRS服务器端口  14580               不解释\n\
     -g      调试主机地址    192.168.1.125       用于调试、配置及监控的主机内网IP\n\
     -e      调试主机端口    12345               不解释\n\
-    -v      停机电压        3.2                 电压低于此值系统停止工作（最小值3.1）\n\
+    -v      停机电压        3.1                 电压低于此值系统停止工作（最小值3.1）\n\
     -r      重新工作电压    3.5                 电压高于此值系统重新工作（最大值3.6）\n\
     -n      最小发送间隔    600                 单位：秒（最小值300）\n\
-    -x      最大发送间隔    1200                单位：秒（最大值1800）\n\
+    -x      最大发送间隔    1800                单位：秒（最大值1800）\n\
+    -m      用户定制消息                        最大长度：不大于67个英文字符\n\
     -l      语言选择        CN                  0 中文；1 英文\n\
 \n\
 配置命令示例:\n\
@@ -475,10 +487,11 @@ Optional parameters:\n\
     -p      APRS server port    14580               don't explain\n\
     -g      Debug host address  192.168.1.125       host Intranet IP for debugg,config,monitor\n\
     -e      Debug host port     12345               don't explain\n\
-    -v      Stop voltage        3.2                 voltage below this value system will stop work(min:3.1v)\n\
+    -v      Stop voltage        3.1                 voltage below this value system will stop work(min:3.1v)\n\
     -r      ReWork voltage      3.5                 voltage above this value system will rework(max:3.6v)\n\
     -n      Min send interval   600                 Unit: Seconds (min: 300)\n\
-    -x      Max send interval   1200                Unit: Seconds (max: 1800)\n\
+    -x      Max send interval   1800                Unit: Seconds (max: 1800)\n\
+    -m      User custom messages                    max length <= 67 letters\n\
     -l      Language selection  CN                  0 Chinese, 1 English\n\
 \n\
 Examples of configuration commands:\n\
@@ -530,6 +543,8 @@ void dispset()
         client_dbg.printf("%0.2f\n", mycfg.lon);
         client_dbg.print("纬度:\t");
         client_dbg.printf("%0.2f\n", mycfg.lat);
+        client_dbg.print("用户消息:\t");
+        client_dbg.println(mycfg.usermsg);
         client_dbg.print("语言设置:\t");
         client_dbg.println(mycfg.language);
         client_dbg.print("系统运行状态:\t");
@@ -563,6 +578,8 @@ void dispset()
         client_dbg.printf("%0.2f\n", mycfg.lon);
         client_dbg.print("Latitude:\t");
         client_dbg.printf("%0.2f\n", mycfg.lat);
+        client_dbg.print("User msg:\t");
+        client_dbg.println(mycfg.usermsg);
         client_dbg.print("Language:\t");
         client_dbg.println(mycfg.language);
         client_dbg.print("System state:\t");
@@ -590,6 +607,7 @@ void cfg_init()
     strcpy(mycfg.debug_server_addr, "192.168.1.125");
     strcpy(mycfg.callsign, "NOCALL");
     strcpy(mycfg.ssid, "13");
+    strcpy(mycfg.usermsg, "");
     mycfg.sysstate = SYS_CFG;
     mycfg.language = CN;
     eeprom_save();
@@ -650,51 +668,255 @@ void set_cfg()
                 /* Optind is a global variable used by getopt.    It is used to store the number of indexes of 
                 getopt.This place must be cleared, otherwise will not be able to work regularly next time */
     int ch;
-    while ((ch = getopt(cnt, cmd, "c:w:o:a:s:d:p:e:g:v:r:n:x:l:")) != -1)
+    bool fail = false;
+    bool ok = false;
+    while ((ch = getopt(cnt, cmd, "c:w:o:a:s:d:p:e:g:v:r:n:x:l:m:")) != -1)
     {
         switch (ch)
         {
         case 'c':
-            strcpy(mycfg.callsign, optarg);
+            if (strlen(optarg) < 4 || strlen(optarg) > 6)
+            {
+                const char *msg3[] = {
+                    "呼号长度小于4位或大于6位",
+                    "Call sign length is less than 4 digits or longer than 6 digits",
+                };
+                DBGPRINTLN(msg3[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                strcpy(mycfg.callsign, optarg);
+                ok = true;
+            }
             break;
         case 'w':
-            mycfg.password = atoi(optarg);
+            if (atol(optarg) < 0 || atol(optarg) > 32768)
+            {
+                const char *msg16[] = {
+                    "密码不合法",
+                    "Password is not valid",
+                };
+                DBGPRINTLN(msg16[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                mycfg.password = atoi(optarg);
+                ok = true;
+            }
             break;
         case 'o':
-            mycfg.lon = atof(optarg);
+            if (atof(optarg) > 18000.0f || atof(optarg) < -18000.0f)
+            {
+                const char *msg11[] = {
+                    "经度值超出范围",
+                    "Longitude value out of range",
+                };
+                DBGPRINTLN(msg11[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                mycfg.lon = atof(optarg);
+                ok = true;
+            }
             break;
         case 'a':
-            mycfg.lat = atof(optarg);
+            if (atof(optarg) > 9000.0f || atof(optarg) < -9000.0f)
+            {
+                const char *msg12[] = {
+                    "纬度值超过范围",
+                    "Latitude value out of range",
+                };
+                DBGPRINTLN(msg12[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                mycfg.lat = atof(optarg);
+                ok = true;
+            }
             break;
         case 's':
-            strcpy(mycfg.aprs_server_addr, optarg);
+            if (strlen(optarg) > 25)
+            {
+                const char *msg17[] = {
+                    "APRS服务器地址太长（最多25字节）",
+                    "The APRS server address is too long(max 25 bytes)",
+                };
+                DBGPRINTLN(msg17[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                strcpy(mycfg.aprs_server_addr, optarg);
+                ok = true;
+            }
             break;
         case 'd':
-            strcpy(mycfg.ssid, optarg);
+            if (strlen(optarg) > 2 || strlen(optarg) == 0)
+            {
+                const char *msg4[] = {
+                    "SSID 长度大于2位或是等于0",
+                    "SSID length longer than 2 digits or equal to 0",
+                };
+                DBGPRINTLN(msg4[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                strcpy(mycfg.ssid, optarg);
+                ok = true;
+            }
             break;
         case 'p':
-            mycfg.aprs_server_port = atoi(optarg);
+            if (atoi(optarg) < 20 || atoi(optarg) > 20000)
+            {
+                const char *msg20[] = {
+                    "APRS服务器端口号不合法（正确范围：20-20000）",
+                    "The APRS server port number is not valid (correct range: 20-20000)",
+                };
+                DBGPRINTLN(msg20[mycfg.language]);
+                fail = true;
+            }
+            {
+                mycfg.aprs_server_port = atoi(optarg);
+                ok = true;
+            }
             break;
         case 'g':
-            strcpy(mycfg.debug_server_addr, optarg);
+            if (strlen(optarg) > 25)
+            {
+                const char *msg18[] = {
+                    "调试主机地址太长（最长25字节）",
+                    "The debug host address is too long(max 25 bytes)",
+                };
+                DBGPRINTLN(msg18[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                strcpy(mycfg.debug_server_addr, optarg);
+                ok = true;
+            }
             break;
         case 'e':
-            mycfg.debug_server_port = atoi(optarg);
+            if (atoi(optarg) < 1024 || atoi(optarg) > 65000)
+            {
+                const char *msg21[] = {
+                    "调试主机端口号不合法（正确范围：1024-65000）",
+                    "The debug host port number is not valid (correct range: 1024-65000)",
+                };
+                DBGPRINTLN(msg21[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                mycfg.debug_server_port = atoi(optarg);
+                ok = true;
+            }
             break;
         case 'v':
-            mycfg.stop_voltage = atof(optarg);
+            if (atof(optarg) < 3.1f)
+            {
+                const char *msg8[] = {
+                    "停机电压值设置过低",
+                    "The stop voltage value is set too low",
+                };
+                DBGPRINTLN(msg8[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                mycfg.stop_voltage = atof(optarg);
+                ok = true;
+            }
             break;
         case 'r':
-            mycfg.restart_voltage = atof(optarg);
+            if (atof(optarg) > 3.6f)
+            {
+                const char *msg9[] = {
+                    "重工作电压值设置过高",
+                    "The rework voltage value is set too high",
+                };
+                DBGPRINTLN(msg9[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                mycfg.restart_voltage = atof(optarg);
+                ok = true;
+            }
             break;
         case 'n':
-            mycfg.min_send_interval = atoi(optarg);
+            if (atoi(optarg) < 300)
+            {
+                const char *msg5[] = {
+                    "最小间隔设置值过低",
+                    "The minimum interval setting is too short",
+                };
+                DBGPRINTLN(msg5[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                mycfg.min_send_interval = atoi(optarg);
+                ok = true;
+            }
             break;
         case 'x':
-            mycfg.max_send_interval = atoi(optarg);
+            if (atoi(optarg) > 1800)
+            {
+                const char *msg6[] = {
+                    "最大间隔设置值过高",
+                    "The maximum interval setting is too long",
+                };
+                DBGPRINTLN(msg6[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                mycfg.max_send_interval = atoi(optarg);
+                ok = true;
+            }
             break;
         case 'l':
-            mycfg.language = (language_t)(atoi(optarg));
+            if (atoi(optarg) < 0 || atoi(optarg) >= LANGUAGE_NUM)
+            {
+                const char *msg13[] = {
+                    "语言设置值超出有效范围",
+                    "The language setting value is out of the valid range",
+                };
+                DBGPRINTLN(msg13[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                mycfg.language = (language_t)(atoi(optarg));
+                ok = true;
+            }
+            break;
+        case 'm':
+            if (strlen(optarg) == 1)
+            {
+                mycfg.usermsg[0] = 0;
+                ok = true;
+            }
+            else if (strlen(optarg) > 67)
+            {
+                const char *msg19[] = {
+                    "用户消息太长（最多67个字节）",
+                    "User message is too long(max 67 bytes)",
+                };
+                DBGPRINTLN(msg19[mycfg.language]);
+                fail = true;
+            }
+            else
+            {
+                strcpy(mycfg.usermsg, optarg);
+                ok = true;
+            }
             break;
         default:
             break;
@@ -702,6 +924,18 @@ void set_cfg()
     }
 
     delete[] buf; //注销临时缓存 Unregister temporary cache
+
+    // 如果有参数设置错误，不保存退出
+    // If there is a parameter setting error, do not save and return
+    if (fail == true || ok == false)
+    {
+        const char *msg15[] = {
+            "设置的参数有误，设置未保存，请重新输入",
+            "There is error in setting parameters. Settings are not saved. Please try again",
+        };
+        DBGPRINTLN(msg15[mycfg.language]);
+        return;
+    }
 
     //判断是否已经设置必设参数
     //Determines whether the required parameters have been set
@@ -722,113 +956,36 @@ void set_cfg()
 
     //判断参数是否合法
     // Check if the parameter is valid
-    if (((String)mycfg.callsign).length() < 4 || (((String)mycfg.callsign).length() > 6))
-    {
-        const char *msg3[] = {
-            "呼号长度小于4位或大于6位",
-            "Call sign length is less than 4 digits or longer than 6 digits",
-        };
-        DBGPRINTLN(msg3[mycfg.language]);
-    }
-    else if (((String)mycfg.ssid).length() > 2 || ((String)mycfg.ssid).length() == 0)
-    {
-        const char *msg4[] = {
-            "SSID 长度大于2位或是等于0",
-            "SSID length longer than 2 digits or equal to 0",
-        };
-        DBGPRINTLN(msg4[mycfg.language]);
-    }
-    else if (mycfg.min_send_interval < 300)
-    {
-        const char *msg5[] = {
-            "最小间隔设置值过低",
-            "The minimum interval setting is too short",
-        };
-        DBGPRINTLN(msg5[mycfg.language]);
-    }
-    else if (mycfg.max_send_interval > 1800)
-    {
-        const char *msg6[] = {
-            "最大间隔设置值过高",
-            "The maximum interval setting is too long",
-        };
-        DBGPRINTLN(msg6[mycfg.language]);
-    }
-    else if (mycfg.min_send_interval > mycfg.max_send_interval)
+    if (mycfg.min_send_interval > mycfg.max_send_interval)
     {
         const char *msg7[] = {
-            "最小间隔设置值高于最大间隔设置值",
-            "The minimum interval setting value is longer than the maximum interval setting value",
+            "最小间隔设置值高于最大间隔设置值，请重新输入",
+            "The minimum interval setting value is longer than the maximum interval setting value, please try again",
         };
         DBGPRINTLN(msg7[mycfg.language]);
-    }
-    else if (mycfg.stop_voltage < 3.1f)
-    {
-        const char *msg8[] = {
-            "停机电压值设置过低",
-            "The stop voltage value is set too low",
-        };
-        DBGPRINTLN(msg8[mycfg.language]);
-    }
-    else if (mycfg.restart_voltage > 3.6f)
-    {
-        const char *msg9[] = {
-            "重工作电压值设置过高",
-            "The rework voltage value is set too high",
-        };
-        DBGPRINTLN(msg9[mycfg.language]);
+        return;
     }
     else if (mycfg.stop_voltage > mycfg.restart_voltage)
     {
         const char *msg10[] = {
-            "停机电压值大于重启动电压值",
-            "The stop voltage is higher than the rework voltage",
+            "停机电压值大于重启动电压值，请重新输入",
+            "The stop voltage is higher than the rework voltage, please try again",
         };
         DBGPRINTLN(msg10[mycfg.language]);
-    }
-    else if (mycfg.lon > 18000.0f || mycfg.lon < -18000.0f)
-    {
-        const char *msg11[] = {
-            "经度值超出范围",
-            "Longitude value out of range",
-        };
-        DBGPRINTLN(msg11[mycfg.language]);
-    }
-    else if (mycfg.lat > 9000.0f || mycfg.lat < -9000.0f)
-    {
-        const char *msg12[] = {
-            "纬度值超过范围",
-            "Latitude value out of range",
-        };
-        DBGPRINTLN(msg12[mycfg.language]);
-    }
-    else if (mycfg.language < 0 || mycfg.language > LANGUAGE_NUM)
-    {
-        const char *msg13[] = {
-            "语言设置值超出有效范围",
-            "The language setting value is out of the valid range",
-        };
-        DBGPRINTLN(msg13[mycfg.language]);
-    }
-    else
-    {
-        //设置成功，保存退出
-        //// Set successfully, save exit
-        mycfg.sysstate = SYS_RUN; //更改系统状态为运行状态      Change the system state to running state
-        eeprom_save();            //保存配置数据                Save configuration data
-        dispset();                //显示系统当前配置            Displays the current system configuration
-        const char *msg14[] = {
-            "请注意：此处无法准确检查所有参数的正确性，请自行检查确认。",
-            "Please note that the correctness of all parameters cannot be checked accurately here. Please check and confirm by yourself.",
-        };
-        DBGPRINTLN(msg14[mycfg.language]);
         return;
     }
-    const char *msg15[] = {
-        "设置的参数设置未保存，请重新输入",
-        "The set parameter is not saved, please try again",
+
+    //设置成功，保存退出
+    //// Set successfully, save exit
+    mycfg.sysstate = SYS_RUN; //更改系统状态为运行状态      Change the system state to running state
+    eeprom_save();            //保存配置数据                Save configuration data
+    dispset();                //显示系统当前配置            Displays the current system configuration
+    const char *msg14[] = {
+        "设置已保存（注意：此处无法准确检查所有参数的正确性，请自行检查确认）",
+        "Settings saved (Attention: that the correctness of all parameters cannot be checked accurately here. Please check and confirm by yourself.",
     };
-    DBGPRINTLN(msg15[mycfg.language]);
+    DBGPRINTLN(msg14[mycfg.language]);
+    return;
 }
 
 //电压过低判断处理
@@ -848,7 +1005,7 @@ void voltageLOW()
 #else
     //调试时因板上ADC脚有外接电阻，电压偏低，此处虚拟一个正常范围的电压值
     // When debugging, the voltage is low due to the external resistor on the ADC pin on the board, so a normal range of voltage value is virtual here
-    voltage = 3.6f;
+    voltage = 4.22f;
 #endif
 }
 
@@ -890,7 +1047,7 @@ void setup()
     WiFisetup();                              //自动配网        Automatic distribution network
     ArduinoOTA.setHostname("Esp8266MWS-OTA"); //设置OTA主机名   Set OTA hostname
     ArduinoOTA.begin();                       //初始化OTA       Initialize OTA
-    EEPROM.begin(128);                        //初始化EEPROM    initialize EEPROM
+    EEPROM.begin(256);                        //初始化EEPROM    initialize EEPROM
 
 #ifdef DEBUG_MODE
 #ifdef EEPROM_CLEAR
@@ -931,16 +1088,62 @@ void loop()
             mycfg.sysstate = SYS_STOP; //转换为停止状态 Switch to the stop state
             eeprom_save();             //保存状态设置   Save state Settings
         }
+        // 如果电压高于4.2V，不休眠直到电压低于4.1
+        // if voltage higher than 4.2V, Run until the voltage drops below 4.1V
+        else if (voltage >= 4.2f)
+        {
+            if (client_dbg.connect(mycfg.debug_server_addr, mycfg.debug_server_port))
+            {
+                //已连接到默认配置服务器，显示系统信息
+                // The default configuration server is connected
+                dispsysinfo();
+            }
+
+            //如果电压高于4.1f，一直运行
+            while (voltage > 4.1f)
+            {
+                //延时设置最小
+                sleepsec = mycfg.min_send_interval;
+
+                //如果登录发送数据 失败
+                // If logon and send data fail
+                if (!loginAPRS())
+                    sleepsec = 60;
+
+                client_aprs.stop();   //关闭已经创建的连接  Close the connection that has been created
+                last_send = millis(); //保存最后发送的时间  Save the last sent time
+
+                // 没有到达延迟时间一直等待
+                // If the delay is not completed
+                while (millis() - last_send < sleepsec * 1000)
+                {
+                    //如果调试主机已连接，运行配置程序 If the debug host is connected, run the configurator
+                    if (client_dbg.connected())
+                        set_cfg();
+                    //否则尝试连接调试主机 Otherwise, try to connect to the debug host
+                    else
+                    {
+                        if (client_dbg.connect(mycfg.debug_server_addr, mycfg.debug_server_port))
+                        {
+                            //已连接到默认配置服务器，显示系统信息
+                            // The default configuration server is connected
+                            dispsysinfo();
+                        }
+                    }
+
+                    voltageLOW();        //电压过低判断 Voltage is too low to judge
+                    ArduinoOTA.handle(); //OTA处理      OTA processing
+                    delay(10);
+                }
+            }
+        }
         //否则正常工作
         // Otherwise it works fine
         else
         {
             //计算工作时间间隔
             // Calculate the work interval
-            sleepsec = mycfg.min_send_interval +
-                       ((voltage >= 4.2f)
-                            ? 0
-                            : (mycfg.max_send_interval - mycfg.min_send_interval) * (4.2f - voltage) / (4.2f - mycfg.stop_voltage));
+            sleepsec = mycfg.min_send_interval + (mycfg.max_send_interval - mycfg.min_send_interval) * (4.2f - voltage) / (4.2f - mycfg.stop_voltage);
 
             //如果连接调试服务器成功
             // If the connection to the debug server is successful
@@ -956,10 +1159,7 @@ void loop()
                 {
                     //重新计算工作时间间隔
                     // Recalculate the work interval
-                    sleepsec = mycfg.min_send_interval +
-                               ((voltage >= 4.2f)
-                                    ? 0
-                                    : (mycfg.max_send_interval - mycfg.min_send_interval) * (4.2f - voltage) / (4.2f - mycfg.stop_voltage));
+                    sleepsec = mycfg.min_send_interval + (mycfg.max_send_interval - mycfg.min_send_interval) * (4.2f - voltage) / (4.2f - mycfg.stop_voltage);
 
                     //如果登录发送数据 失败
                     // If logon and send data fail
