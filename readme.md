@@ -14,7 +14,7 @@ The English instructions are at the bottom
 
 ## 简介
 
-这个小制作是我学习esp8266 arduino的第一个小实验，它使用常见的esp8266模块（如NODEMCU、WEMOS等），外接两只I2C总线的气压温度湿度传感器，来实现了**简单的**业余无线电爱好者使用的APRS气象站功能（说是简单是因为它并没有风向、风速和雨量功能，而且后期也没有加入这些功能的打算，原因是这类传感器价格比较贵，不太适应瞎折腾玩 :-p）。实现类似功能的开源小制作估计也有不少，相比较而言，我这个的最主要特点以下几个：
+这个小制作是我学习esp8266 arduino的第一个小实验，它使用常见的esp8266实验板（如NODEMCU、WEMOS等），外接两只I2C总线的气压温度湿度传感器，来实现了**简单的**业余无线电爱好者使用的APRS气象站功能（说是简单是因为它并没有风向、风速和雨量功能，而且后期也没有加入这些功能的打算，原因是这类传感器价格比较贵，不太适应瞎折腾玩 :-p）。实现类似功能的开源小制作估计也有不少，相比较而言，我这个的最主要特点以下几个：
 
 - 简单
 
@@ -76,13 +76,11 @@ The English instructions are at the bottom
 
 ## 代码编译与固件烧写
 
-熟悉arduino的朋友，可以直接使用Arduino IDE，在安装好相应库的情况下，直接进行编译和下载。代码中已经包含了OTA的代码，第一次烧写完成后，后面可以直接OTA来烧写，一些细节见下面的使用方法。
-
-不熟悉arduino的朋友，可以下载乐鑫官方的的固件下载工具，目前的最新版官方地址如下：
+熟悉arduino的朋友，可以直接使用Arduino IDE，在安装好相应库的情况下，直接进行编译和下载。代码中已经包含了OTA的代码，第一次烧写完成后，后面可以直接OTA来烧写，一些细节见下面的使用方法。不熟悉arduino的朋友，可以下载乐鑫官方的的固件下载工具，目前的最新版官方地址如下：
 
 https://www.espressif.com/sites/default/files/tools/flash_download_tool_v3.8.7_0.zip
 
-下载好解压完成后，双击主程序文件运行，如果是windows10的操作系统，会弹出一个警告，选择“仍要运行”即可。出现的窗口中，Chip Type选择 ESP8266，Work Mode选择“develop”，然后选择好已编译好的.bin文件，选择好你自己的串口号，其他按下图中的设置，点击 start 即可下载。
+下载好解压完成后，双击主程序文件运行，如果是windows10的操作系统，会弹出一个警告，选择“仍要运行”即可。出现的窗口中，“Chip Type”选择 “ESP8266”，“Work Mode”选择“develop”，选择已编译好的.bin文件，再选择你自己的串口号，其他选项按下图中的设置，然后点击 start 即可下载。
 
 ![](pic/2.jpg)
 
@@ -109,7 +107,7 @@ https://www.espressif.com/sites/default/files/tools/flash_download_tool_v3.8.7_0
 
 
 - 正常运行
-  1. 使用命令行配置好系统后，系统就已经正常运行了。在打开网络调试工具并且已经esp8266已经连接在电脑的情况下，窗口中会显示相应的运行状态。此时电路是一直工作的，不会进入休眠状态，此时OTA系统是运行的，可以直接使用Arduino IDE进行代码更新（更新后WiFi的设置以及所有的配置参数都是不变的，不需要重新设置）。
+  1. 使用命令行配置好系统后，系统就已经正常运行了。在打开网络调试工具并且已经和esp8266连接的情况下，窗口中会显示相应的运行状态。此时电路是一直工作的，不会进入休眠状态，OTA系统正常运行，可以直接使用Arduino IDE进行代码更新。
   2. 如果关闭了电脑上的网络调试工具，或者点击关闭来结束了网络连接，那么esp8266马上会进入节能休眠状态。系统将根据电池电压，以及配置参数中设置的发送间隔参数，来自动计算唤醒时间，一但唤醒时间到达，系统将自动进行一次测量，并送相应数据到APRS服务器，然后再次进入休眠状态。
   3. 当电池电压低于设置的“停止工作电压”时，系统会不再发送数据，但会周期性的唤醒，来检测电压，直到电压上升到“重新工作电压"值以上时，系统会再次正常间隔运行。
   4. 因为系统处于间歇运行状态，每次工作时间大约只有10秒钟，所以如果需要进行空中固件更新，那么只要打开网络调试软件的服务器状态，等待系统再次工作时，就会自动连接上电脑，此时就可以进行空中更新操作了。
@@ -134,7 +132,7 @@ Because my English is not good, it is very difficult for me to read the code of 
 
 ## INTRODUCTION
 
-This small production is my first small experiment to learn ESP8266 Arduino. It uses common ESP8266 modules (such as Nodemcu, Wemos, etc.) and is connected with two pressure, temperature and humidity sensors of I2C bus.To implement the **simple** APRS weather station feature used by amateur radio operators (simple because it doesn't have wind, wind, and rainfall features, and there are no plans to add them in the future because they are expensive and not easy to play around with: -P).It is estimated that there are many small open source productions that can achieve similar functions. In comparison, the main features of this one are as follows:
+This small production is my first small experiment to learn ESP8266 Arduino. It uses common experimental circuit board (such as Nodemcu, Wemos, etc.) and is connected with two pressure, temperature and humidity sensors of I2C bus.To implement the **simple** APRS weather station feature used by amateur radio operators (simple because it doesn't have wind and rainfall features, and there are no plans to add them in the future because they are expensive and not easy to play around with: -P).It is estimated that there are many small open source productions that can achieve similar functions. In comparison, the main features of this one are as follows:
 
 - Simplicity
 
@@ -199,13 +197,11 @@ Because the structure of the circuit is very simple, I will not draw it professi
 
 ## CODE COMPILE AND FIRMWARE FLASH
 
-If you are familiar with Arduino, you can directly use the Arduino IDE and compile and download it with the corresponding libraries installed.OTA code has been included in the code. After the completion of the first burn, OTA can be directly burned later. For some details, please refer to the following usage method.
-
-If you are not familiar with Arduino, you can download the official firmware download tool of ESPRESSIF. The current official address of the latest version is as follows:
+If you are familiar with Arduino, you can directly use the Arduino IDE and compile and download it with the corresponding libraries installed.OTA code has been included in the code. After the completion of the first burn, OTA can be directly burned later. For some details, please refer to the following usage method. If you are not familiar with Arduino, you can download the official firmware download tool of ESPRESSIF. The current official address of the latest version is as follows:
 
 https://www.espressif.com/sites/default/files/tools/flash_download_tool_v3.8.7_0.zip
 
-After downloading the decompression, double-click the main program file to run. If it is the Windows 10 operating system, a warning will pop up and select "still want to run".In the window that appears, select the Chip Type ESP8266, Work Mode "develop", then select the compiled.bin file, select your own serial port number, other Settings as shown in the following figure, and click Start to download.
+After downloading the decompression, double-click the main program file to run. If it is the Windows 10 operating system, a warning will pop up and select "still want to run". In the window that appears, select "ESP8266" for "Chip Type", "develop" for "Work Mode", select the compiled .bin file, then select your own serial port number, and other options as shown in the following image, then click START to download.
 
 ![](pic/2.jpg)
 
@@ -233,7 +229,7 @@ After downloading the decompression, double-click the main program file to run. 
 
 - Normal use
   
-  1. After the system is configured using the command line, the system is running normally.When the network debugging tool is open and ESP8266 is already connected to the computer, the corresponding running status will be displayed in the window.At this time, the circuit is working all the time and will not enter the hibernation state. At this time, the OTA system is running, and the code can be updated directly with the Arduino IDE (after the update, the setting of WiFi and all configuration parameters remain unchanged, and there is no need to reset).
+  1. Once you have configured your system using the command line, it is running normally.When the network debugging tool is open and the ESP8266 is connected, the corresponding running status will be displayed in the window.At this time, the circuit is working all the time and will not go into hibernation state. The OTA system runs normally and the code can be updated directly by using the Arduino IDE.
   2. If you turn off the Network Debugger on your computer, or click Close to end your network connection, ESP8266 will immediately enter the Energy-saving Sleep state.The system will automatically calculate the wake-up time according to the battery voltage and the transmission interval parameters set in the configuration parameters. Once the wake-up time arrives, the system will automatically make a measurement and send the corresponding data to the APRS server, and then enter the sleep state again.
   3. When the battery voltage is lower than the set "stop working voltage", the system will no longer send data, but will periodically wake up to detect the voltage, until the voltage rises above the value of "restart working voltage", the system will run again at normal intervals.
   4. Because the system is running intermittently, each working time is only about 10 seconds, so if you need to update the firmware in the air, as long as you open the server state of the network debugging software, waiting for the system to work again, it will automatically connect to the computer, then you can carry out the air update operation.
