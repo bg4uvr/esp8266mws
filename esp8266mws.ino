@@ -434,7 +434,7 @@ void dispsysinfo()
         client_dbg.println("\n\
 配置命令格式说明：\n\
 \n\
-    cfg -c callsign -w password -o lon -a lat -s serveradd [其他可选参数]\n\
+    cfg -参数1 参1数数据 -参数2 参数2数据 ... -参数n 参数n数据\n\
 \n\
     参数    含义            格式                说明\n\
 \n\
@@ -458,7 +458,7 @@ void dispsysinfo()
     -l      语言选择        CN                  0 中文；1 英文\n\
 \n\
 配置命令示例:\n\
-    cfg -c YOURCALL -w 12345 -d 10 -o 12100.00 -a 3100.00 -s xxx.aprs2.net\n\
+    cfg -c BGnXXX -w 12345 -o 12100.00 -a 3100.00 -s xxx.aprs2.net\n\
 \n\
 更改语言 (Change language)：\n\
     cfg -l n\n\
@@ -471,7 +471,7 @@ void dispsysinfo()
         client_dbg.println("\n\
 Format description of configuration command:\n\
 \n\
-    cfg -c callsign -w password -o lon -a lat -s serveradd [Other optional parameters]\n\
+    cfg -parameter1 parameter1_data -parameter2 parameter2_data ... -parameterN parameterN_data\n\
 \n\
  parameter  means               sample              instructions\n\
 \n\
@@ -495,7 +495,7 @@ Optional parameters:\n\
     -l      Language selection  CN                  0 Chinese, 1 English\n\
 \n\
 Examples of configuration commands:\n\
-    cfg -c YOURCALL -w 12345 -d 10 -o 12100.00 -a 3100.00 -s xxx.aprs2.net\n\
+    cfg -c BGnXXX -w 12345 -o 12100.00 -a 3100.00 -s xxx.aprs2.net\n\
 \n\
 Change language：\n\
     cfg -l n\n\
@@ -898,7 +898,9 @@ void set_cfg()
             }
             break;
         case 'm':
-            if (strlen(optarg) == 1)
+            // 使用命令："cfg - m .\n"，可以清空用户消息
+            // Use the command "cfg -m .\n" can clear user messages
+            if (strlen(optarg) == 1 && *optarg == '.')
             {
                 mycfg.usermsg[0] = 0;
                 ok = true;
@@ -1005,7 +1007,7 @@ void voltageLOW()
 #else
     //调试时因板上ADC脚有外接电阻，电压偏低，此处虚拟一个正常范围的电压值
     // When debugging, the voltage is low due to the external resistor on the ADC pin on the board, so a normal range of voltage value is virtual here
-    voltage = 4.22f;
+    voltage = 4.1f;
 #endif
 }
 
@@ -1092,13 +1094,6 @@ void loop()
         // if voltage higher than 4.2V, Run until the voltage drops below 4.1V
         else if (voltage >= 4.2f)
         {
-            if (client_dbg.connect(mycfg.debug_server_addr, mycfg.debug_server_port))
-            {
-                //已连接到默认配置服务器，显示系统信息
-                // The default configuration server is connected
-                dispsysinfo();
-            }
-
             //如果电压高于4.1f，一直运行
             while (voltage > 4.1f)
             {
@@ -1174,8 +1169,9 @@ void loop()
                     while (millis() - last_send < sleepsec * 1000 && client_dbg.connected())
                         freeloop();
                 }
-                digitalWrite(LED_BUILTIN, 1);                                               //关灯  turnoff LED
-                ESP.deepSleep((uint64_t)(sleepsec * 1000 - (millis() - last_send)) * 1000); //调试连接断开后立刻休眠 When the debug connection is broken, it sleeps immediately
+                // 调试连接断开后，重新计算休眠时间
+                // After the debug connection is broken, the sleep time is recalculated
+                sleepsec -= (millis() - last_send) / 1000;
             }
             //没能连接到调试服务器
             // Unable to connect to the debug server
@@ -1185,10 +1181,14 @@ void loop()
                 // Login sends data, if failed, try again after 60 seconds
                 if (!loginAPRS())
                     sleepsec = 60;
-                client_aprs.stop();                              //关闭已经创建的连接   Close the connection that has been created
-                digitalWrite(LED_BUILTIN, 1);                    //关灯 turnoff LED
-                ESP.deepSleep((uint64_t)sleepsec * 1000 * 1000); //休眠 sleep
+                client_aprs.stop(); //关闭已经创建的连接   Close the connection that has been created
+                delay(1000);        //延时1秒，以等待连接关闭完成 Delay 1 second to wait for the connection closing to complete
             }
+
+            //工作完成，准备休眠
+            //Work done, ready for hibernation
+            digitalWrite(LED_BUILTIN, 1);                    //关灯 turnoff LED
+            ESP.deepSleep((uint64_t)sleepsec * 1000 * 1000); //休眠 sleep
         }
         break;
 
