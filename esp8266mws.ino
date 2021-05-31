@@ -434,7 +434,7 @@ void dispsysinfo()
         client_dbg.println("\n\
 配置命令格式说明：\n\
 \n\
-    cfg -参数1 参1数数据 -参数2 参数2数据 ... -参数n 参数n数据\n\
+    cfg -参数1 参数1数据 [-参数2 参数2数据] [...] [-参数n 参数n数据]\n\
 \n\
     参数    含义            格式                说明\n\
 \n\
@@ -471,7 +471,7 @@ void dispsysinfo()
         client_dbg.println("\n\
 Format description of configuration command:\n\
 \n\
-    cfg -parameter1 parameter1_data -parameter2 parameter2_data ... -parameterN parameterN_data\n\
+    cfg -parameter1 parameter1_data [-parameter2 parameter2_data] [...] [-parameterN parameterN_data]\n\
 \n\
  parameter  means               sample              instructions\n\
 \n\
