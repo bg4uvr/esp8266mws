@@ -68,7 +68,6 @@ typedef struct
     uint16_t debug_server_port; //调试主机端口      //Debug host port
     char aprs_server_addr[26];  //APRS服务器地址    //APRS server address
     char debug_server_addr[26]; //调试主机地址      //Debugging host address
-    char usermsg[68];           //用户自定义消息    //user custom message
     char callsign[8];           //呼号              //callsign
     char ssid[4];               //SSID
     sys_mode_t sysstate;        //系统状态          //The system state
@@ -284,17 +283,16 @@ void send_data()
 #endif
     DBGPRINTLN(msgbuf);
 
+    /*
     // 发送用户消息 send user message
-    if (strlen(mycfg.usermsg) > 0)
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,qAC,:>%s", mycfg.callsign, mycfg.ssid, mycfg.usermsg);
-    else
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,qAC,:>esp8266mws ver0.11", mycfg.callsign, mycfg.ssid);
+    snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,qAC,:>esp8266mws ver0.12", mycfg.callsign, mycfg.ssid);
 
 #ifndef DEBUG_MODE
     client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
 
     DBGPRINTLN(msgbuf);
+    */
 }
 
 //登陆APRS服务器发送数据
@@ -334,7 +332,7 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.11 filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.12 filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
                     }
@@ -450,11 +448,10 @@ void dispsysinfo()
     -p      APRS服务器端口  14580               不解释\n\
     -g      调试主机地址    192.168.1.125       用于调试、配置及监控的主机内网IP\n\
     -e      调试主机端口    12345               不解释\n\
-    -v      停机电压        3.1                 电压低于此值系统停止工作（最小值3.1）\n\
-    -r      重新工作电压    3.5                 电压高于此值系统重新工作（最大值3.6）\n\
+    -v      停机电压        3.2                 电压低于此值系统停止工作（最小值3.1）\n\
+    -r      重新工作电压    3.4                 电压高于此值系统重新工作（最大值3.6）\n\
     -n      最小发送间隔    600                 单位：秒（最小值300）\n\
-    -x      最大发送间隔    1800                单位：秒（最大值1800）\n\
-    -m      用户定制消息                        最大长度：不大于67个英文字符\n\
+    -x      最大发送间隔    1200                单位：秒（最大值1800）\n\
     -l      语言选择        CN                  0 中文；1 英文\n\
 \n\
 配置命令示例:\n\
@@ -487,11 +484,10 @@ Optional parameters:\n\
     -p      APRS server port    14580               don't explain\n\
     -g      Debug host address  192.168.1.125       host Intranet IP for debugg,config,monitor\n\
     -e      Debug host port     12345               don't explain\n\
-    -v      Stop voltage        3.1                 voltage below this value system will stop work(min:3.1v)\n\
-    -r      ReWork voltage      3.5                 voltage above this value system will rework(max:3.6v)\n\
+    -v      Stop voltage        3.2                 voltage below this value system will stop work(min:3.1v)\n\
+    -r      ReWork voltage      3.4                 voltage above this value system will rework(max:3.6v)\n\
     -n      Min send interval   600                 Unit: Seconds (min: 300)\n\
-    -x      Max send interval   1800                Unit: Seconds (max: 1800)\n\
-    -m      User custom messages                    max length <= 67 letters\n\
+    -x      Max send interval   1200                Unit: Seconds (max: 1800)\n\
     -l      Language selection  CN                  0 Chinese, 1 English\n\
 \n\
 Examples of configuration commands:\n\
@@ -543,8 +539,6 @@ void dispset()
         client_dbg.printf("%0.2f\n", mycfg.lon);
         client_dbg.print("纬度:\t");
         client_dbg.printf("%0.2f\n", mycfg.lat);
-        client_dbg.print("用户消息:\t");
-        client_dbg.println(mycfg.usermsg);
         client_dbg.print("语言设置:\t");
         client_dbg.println(mycfg.language);
         client_dbg.print("系统运行状态:\t");
@@ -578,8 +572,6 @@ void dispset()
         client_dbg.printf("%0.2f\n", mycfg.lon);
         client_dbg.print("Latitude:\t");
         client_dbg.printf("%0.2f\n", mycfg.lat);
-        client_dbg.print("User msg:\t");
-        client_dbg.println(mycfg.usermsg);
         client_dbg.print("Language:\t");
         client_dbg.println(mycfg.language);
         client_dbg.print("System state:\t");
@@ -594,12 +586,12 @@ void dispset()
 // Configure data initialization
 void cfg_init()
 {
-    mycfg.stop_voltage = 3.1f;
-    mycfg.restart_voltage = 3.5f;
+    mycfg.stop_voltage = 3.2f;
+    mycfg.restart_voltage = 3.4f;
     mycfg.lon = 0.0f;
     mycfg.lat = 0.0f;
     mycfg.min_send_interval = 600;
-    mycfg.max_send_interval = 1800;
+    mycfg.max_send_interval = 1200;
     mycfg.password = 0;
     mycfg.aprs_server_port = 14580;
     mycfg.debug_server_port = 12345;
@@ -607,7 +599,6 @@ void cfg_init()
     strcpy(mycfg.debug_server_addr, "192.168.1.125");
     strcpy(mycfg.callsign, "NOCALL");
     strcpy(mycfg.ssid, "13");
-    strcpy(mycfg.usermsg, "");
     mycfg.sysstate = SYS_CFG;
     mycfg.language = CN;
     eeprom_save();
@@ -670,7 +661,7 @@ void set_cfg()
     int ch;
     bool fail = false;
     bool ok = false;
-    while ((ch = getopt(cnt, cmd, "c:w:o:a:s:d:p:e:g:v:r:n:x:l:m:")) != -1)
+    while ((ch = getopt(cnt, cmd, "c:w:o:a:s:d:p:e:g:v:r:n:x:l:")) != -1)
     {
         switch (ch)
         {
@@ -897,29 +888,7 @@ void set_cfg()
                 ok = true;
             }
             break;
-        case 'm':
-            // 使用命令："cfg - m .\n"，可以清空用户消息
-            // Use the command "cfg -m .\n" can clear user messages
-            if (strlen(optarg) == 1 && *optarg == '.')
-            {
-                mycfg.usermsg[0] = 0;
-                ok = true;
-            }
-            else if (strlen(optarg) > 67)
-            {
-                const char *msg19[] = {
-                    "用户消息太长（最多67个字节）",
-                    "User message is too long(max 67 bytes)",
-                };
-                DBGPRINTLN(msg19[mycfg.language]);
-                fail = true;
-            }
-            else
-            {
-                strcpy(mycfg.usermsg, optarg);
-                ok = true;
-            }
-            break;
+
         default:
             break;
         }
