@@ -18,7 +18,7 @@ The English instructions are at the bottom
 
 - 简单
 
-  整个制作主要使用了3个模块，CN3791太阳能充电模块、NODEMCU板、ATH20+BMP280模块。
+  整个制作主要使用了3个模块，CN3791太阳能充电模块、NODEMCU板、AHT20+BMP280模块。
 
 - 省电
 
@@ -136,7 +136,7 @@ This small production is my first small experiment to learn ESP8266 Arduino. It 
 
 - Simplicity
 
-  The whole production mainly uses three modules, CN3791 solar charging module, NODEMCU board, ATH20+BMP280 module.
+  The whole production mainly uses three modules, CN3791 solar charging module, NODEMCU board, AHT20+BMP280 module.
 
 - Save electricity
 
