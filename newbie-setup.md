@@ -40,7 +40,7 @@ http://free.cmsoft.cn/download/cmsoft/assistant/netassist4.3.29.zip
     过程略。我用2根杜邦线连接，后期会用热熔胶或焊锡之类固定
      
      
-      ![](pic/8266-jiexian.jpg)
+  ![](pic/8266-jiexian.jpg)
 
 
 ### 1、刷入固件
