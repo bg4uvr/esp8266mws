@@ -24,7 +24,7 @@ https://www.espressif.com/zh-hans/support/download/other-tools
 ### 3、网络调试工具
 http://free.cmsoft.cn/download/cmsoft/assistant/netassist4.3.29.zip
 
-##三、调试步骤
+## 三、调试步骤
 ### 使用风枪吹掉A0 针脚的2个贴片电阻
 260度加热几十秒后，用镊子随便推下就掉了
 
