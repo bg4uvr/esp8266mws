@@ -31,11 +31,13 @@ http://free.cmsoft.cn/download/cmsoft/assistant/netassist4.3.29.zip
 ### 0、按照readme.md说明连接好传感器
 简单说明：
  (1)连接传感器，传感器送的线缆，一端用小刀割开就可以牢牢插紧。
+ 
     esp8266              aht20+bmp280传感器
     D5(gpio14) .......     SCL
     D6（gpio12）........    SDA
     3.3v    ........       VDD
     G       ........       GND
+    
  （2）在D0和RST之间连接470欧姆电阻
     过程略。我用2根杜邦线连接，后期会用热熔胶或焊锡之类固定
      
