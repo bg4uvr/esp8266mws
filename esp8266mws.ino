@@ -123,10 +123,6 @@ void WiFisetup()
     }
 }
 
-void dsp(const char *msg[])
-{
-}
-
 //读取BMP280
 // read BMP280
 bool read_bmp280(float *temperature, float *pressure)
@@ -222,7 +218,7 @@ void send_data()
             switch (mycfg.language)
             {
             case CN:
-                client_dbg.printf("\nbmp280 :%0.2f\tbmp280气压:%0.2f\n", temperatureBMP, pressure);
+                client_dbg.printf("\nbmp280温度:%0.2f\tbmp280气压:%0.2f\n", temperatureBMP, pressure);
                 break;
             case EN:
                 client_dbg.printf("\nbmp280 temperature:%0.2f\tbmp280 pressure:%0.2f\n", temperatureBMP, pressure);
@@ -243,10 +239,10 @@ void send_data()
             switch (mycfg.language)
             {
             case CN:
-                client_dbg.printf("aht0温度:%0.2f\taht20湿度:%0.2f\n", temperatureAHT, humidity);
+                client_dbg.printf("aht20温度:%0.2f\taht20湿度:%0.2f\n", temperatureAHT, humidity);
                 break;
             case EN:
-                client_dbg.printf("aht0 temperature:%0.2f\taht20 humidity:%0.2f\n", temperatureAHT, humidity);
+                client_dbg.printf("aht20 temperature:%0.2f\taht20 humidity:%0.2f\n", temperatureAHT, humidity);
                 break;
             default:
                 break;
@@ -272,9 +268,17 @@ void send_data()
             }
     }
 
+    // 发送软件版本消息 send softwre info
+    snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,qAC,:>esp8266mws ver0.13 https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+
+#ifndef DEBUG_MODE
+    client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
+#endif
+    DBGPRINTLN(msgbuf);
+
     // 发送气象报文 Send weather messages
     snprintf(msgbuf, sizeof(msgbuf),
-             "%s-%s>APUVR,qAC,:=%0.2f%c/%0.2f%c_c...s...g...t%sh%sb%sBat:%0.3fV, Int:%dmins.",
+             "%s-%s>APUVR,qAC,:=%0.2f%c/%0.2f%c_.../...g...t%sr...p...h%sb%sBat:%0.3fV, Int:%dmins.",
              mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
              temperatureS, humidityS, pressureS, voltage, sleepsec / 60);
 
@@ -282,17 +286,6 @@ void send_data()
     client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
     DBGPRINTLN(msgbuf);
-
-    /*
-    // 发送用户消息 send user message
-    snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,qAC,:>esp8266mws ver0.12", mycfg.callsign, mycfg.ssid);
-
-#ifndef DEBUG_MODE
-    client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
-#endif
-
-    DBGPRINTLN(msgbuf);
-    */
 }
 
 //登陆APRS服务器发送数据
@@ -332,7 +325,7 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.12 filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.13 filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
                     }
@@ -628,6 +621,18 @@ void set_cfg()
     char *buf = new char[line.length() + 1]; //新建临时缓存，用于String类型转换为char[]类型     // Create a temporary cache for converting String to char[]
 
     strcpy(buf, line.c_str()); //复制字符串     // Copy the string
+
+    // is RST command?
+    if (strncmp(buf, "rst", 3) == 0)
+    {
+        const char *msg0[] = {
+            "收到复位使命令，重新启动中...\n",
+            "Reset command received, restarting...\n",
+        };
+        DBGPRINTLN(msg0[mycfg.language]);
+        delay(2000);
+        ESP.reset(); //reset~
+    }
 
     //判断命令是否正确
     // Determine if the command is correct
