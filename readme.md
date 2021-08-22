@@ -1,6 +1,14 @@
 # Esp8266 Mini Weather Station
 
-The English instructions are at the bottom
+### *** ENGLISH VERSION BELOW *** 
+
+
+
+软件发布地址：
+
+​	https://github.com/bg4uvr/esp8266mws  （如果访问此网址看不到图片，请使用下面国内地址）
+
+​	https://gitee.com/bg4uvr/esp8266mws 
 
 
 
@@ -14,7 +22,7 @@ The English instructions are at the bottom
 
 ## 简介
 
-这个小制作是我学习esp8266 arduino的第一个小实验，它使用常见的esp8266实验板（如NODEMCU、WEMOS等），外接两只I2C总线的气压温度湿度传感器，来实现了**简单的**业余无线电爱好者使用的APRS气象站功能（说是简单是因为它并没有风向、风速和雨量功能，而且后期也没有加入这些功能的打算，原因是这类传感器价格比较贵，不太适应瞎折腾玩 :-p）。实现类似功能的开源小制作估计也有不少，相比较而言，我这个的最主要特点以下几个：
+这个小制作是我学习esp8266 arduino的第一个小实验，它使用常见的esp8266实验板（如NODEMCU、WEMOS等），外接两只I2C总线的气压温度湿度传感器，来实现了简单的业余无线电爱好者使用的APRS气象站功能（说是简单是因为它并没有风向、风速和雨量功能，而且后期也没有加入这些功能的打算，原因是这类传感器价格比较贵，不太适应瞎折腾玩 :-p）。实现类似功能的开源小制作估计也有不少，相比较而言，我这个的最主要特点以下几个：
 
 - 简单
 
@@ -38,7 +46,7 @@ The English instructions are at the bottom
 
 我自己制作小气象站的运行状态可以在这里看到
 
-[BG4UVR-13 的APRS/CWOP气象报告 – Google Maps APRS](https://aprs.fi/weather/a/BG4UVR-13)
+https://aprs.fi/weather/a/BG4UVR-13
 
 
 
@@ -54,7 +62,7 @@ The English instructions are at the bottom
 
 ## 硬件连接
 
-由于电路结构非常简单，所以我不准备专业画图，直接用文字说明好了。
+由于电路结构非常简单，所以我不准备专门画图，直接用文字说明好了。
 
 - 供电电源
 
@@ -78,7 +86,7 @@ The English instructions are at the bottom
 
 熟悉arduino的朋友，可以直接使用Arduino IDE，在安装好相应库的情况下，直接进行编译和下载。代码中已经包含了OTA的代码，第一次烧写完成后，后面可以直接OTA来烧写，一些细节见下面的使用方法。不熟悉arduino的朋友，可以下载乐鑫官方的的固件下载工具，目前的最新版官方地址如下：
 
-https://www.espressif.com/sites/default/files/tools/flash_download_tool_v3.8.7_0.zip
+https://www.espressif.com/sites/default/files/tools/flash_download_tool_v3.8.8_0.zip
 
 下载好解压完成后，双击主程序文件运行，如果是windows10的操作系统，会弹出一个警告，选择“仍要运行”即可。出现的窗口中，“Chip Type”选择 “ESP8266”，“Work Mode”选择“develop”，选择已编译好的.bin文件，再选择你自己的串口号，其他选项按下图中的设置，然后点击 start 即可下载。
 
@@ -156,7 +164,7 @@ This small production is my first small experiment to learn ESP8266 Arduino. It 
 
 The operation status of my own small weather station can be seen here
 
-[BG4UVR-13 的APRS/CWOP气象报告 – Google Maps APRS](https://aprs.fi/weather/a/BG4UVR-13)
+https://aprs.fi/weather/a/BG4UVR-13
 
 
 
@@ -175,7 +183,7 @@ The operation status of my own small weather station can be seen here
 
 ## HARDWARE CONNECTION
 
-Because the structure of the circuit is very simple, I will not draw it professionally, but just use words to explain it.
+Because the structure of the circuit is very simple, I will not draw it specially, but just use words to explain it.
 
 - Power supply
 
@@ -199,7 +207,7 @@ Because the structure of the circuit is very simple, I will not draw it professi
 
 If you are familiar with Arduino, you can directly use the Arduino IDE and compile and download it with the corresponding libraries installed.OTA code has been included in the code. After the completion of the first burn, OTA can be directly burned later. For some details, please refer to the following usage method. If you are not familiar with Arduino, you can download the official firmware download tool of ESPRESSIF. The current official address of the latest version is as follows:
 
-https://www.espressif.com/sites/default/files/tools/flash_download_tool_v3.8.7_0.zip
+https://www.espressif.com/sites/default/files/tools/flash_download_tool_v3.8.8_0.zip
 
 After downloading the decompression, double-click the main program file to run. If it is the Windows 10 operating system, a warning will pop up and select "still want to run". In the window that appears, select "ESP8266" for "Chip Type", "develop" for "Work Mode", select the compiled .bin file, then select your own serial port number, and other options as shown in the following image, then click START to download.
 
