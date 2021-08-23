@@ -278,7 +278,7 @@ void send_data()
 
     // 发送气象报文 Send weather messages
     snprintf(msgbuf, sizeof(msgbuf),
-             "%s-%s>APUVR,qAC,:=%0.2f%c/%0.2f%c_.../...g...t%sr...p...h%sb%sBat:%0.3fV, Int:%dmins.",
+             "%s-%s>APUVR,qAC,:=%0.2f%cR%0.2f%c_.../...g...t%sr...p...h%sb%sBat:%0.3fV, Int:%dmins.",
              mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
              temperatureS, humidityS, pressureS, voltage, sleepsec / 60);
 
