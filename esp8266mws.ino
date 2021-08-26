@@ -286,6 +286,9 @@ void send_data()
     client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
     DBGPRINTLN(msgbuf);
+
+    // 发送完数据后延迟一点时间，以避免网络卡顿时过快关闭连接而造成数据发送失败
+    delay(100);
 }
 
 //登陆APRS服务器发送数据
@@ -1156,7 +1159,7 @@ void loop()
                 if (!loginAPRS())
                     sleepsec = 60;
                 client_aprs.stop(); //关闭已经创建的连接   Close the connection that has been created
-                delay(1000);        //延时1秒，以等待连接关闭完成 Delay 1 second to wait for the connection closing to complete
+                delay(100);         //延时0.1秒，以等待连接关闭完成 Delay 0.1 second to wait for the connection closing to complete
             }
 
             //工作完成，准备休眠
