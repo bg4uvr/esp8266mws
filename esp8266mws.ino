@@ -268,13 +268,18 @@ void send_data()
             }
     }
 
-    // 发送软件版本消息 send softwre info
-    snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,qAC,:>esp8266mws ver0.13 https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+    // 电压mV值的个位为0时，发送一次版本消息
+    int IntV = voltage * 1000;
+    if (IntV % 10 == 0)
+    {
+        // 发送软件版本消息 send softwre info
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,qAC,:>esp8266mws ver0.13a https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
 
 #ifndef DEBUG_MODE
-    client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
+        client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
-    DBGPRINTLN(msgbuf);
+        DBGPRINTLN(msgbuf);
+    }
 
     // 发送气象报文 Send weather messages
     snprintf(msgbuf, sizeof(msgbuf),
