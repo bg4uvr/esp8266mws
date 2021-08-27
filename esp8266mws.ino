@@ -273,7 +273,7 @@ void send_data()
     if (IntV % 10 == 0)
     {
         // 发送软件版本消息 send softwre info
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,qAC,:>esp8266mws ver0.13a https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,TCPIP*:>esp8266mws ver0.13b https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
 
 #ifndef DEBUG_MODE
         client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
@@ -283,7 +283,7 @@ void send_data()
 
     // 发送气象报文 Send weather messages
     snprintf(msgbuf, sizeof(msgbuf),
-             "%s-%s>APUVR,qAC,:=%0.2f%cR%0.2f%c_.../...g...t%sr...p...h%sb%sBat:%0.3fV, Int:%dmins.",
+             "%s-%s>APUVR,TCPIP*:=%0.2f%cR%0.2f%c_.../...g...t%sr...p...h%sb%sBat:%0.3fV, Int:%dmins.",
              mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
              temperatureS, humidityS, pressureS, voltage, sleepsec / 60);
 
@@ -293,7 +293,7 @@ void send_data()
     DBGPRINTLN(msgbuf);
 
     // 发送完数据后延迟一点时间，以避免网络卡顿时过快关闭连接而造成数据发送失败
-    delay(100);
+    delay(200);
 }
 
 //登陆APRS服务器发送数据
@@ -333,7 +333,7 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.13 filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.13b filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
                     }
