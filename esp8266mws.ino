@@ -273,7 +273,7 @@ void send_data()
     if (IntV % 10 == 0)
     {
         // 发送软件版本消息 send softwre info
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,TCPIP*:>esp8266mws ver0.13b https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,TCPIP*:>esp8266mws ver0.14 https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
 
 #ifndef DEBUG_MODE
         client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
@@ -333,7 +333,7 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.13b filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.14 filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
                     }
@@ -463,6 +463,12 @@ void dispsysinfo()
     n = 0 中文\n\
       = 1 English\n\
       = 2 xxx (等待你来完成 Waiting for you to finish~)\n\
+\n\
+复位重启命令：\n\
+    rst\n\
+\n\
+    所有命令发送时需要以 \\n 来结尾，如：\n\
+        rst\\n\n\
 ");
         break;
     case EN:
@@ -499,6 +505,12 @@ Change language：\n\
     n = 0 Chinese\n\
       = 1 English\n\
       = 2 xxx (Waiting for you to finish~)\n\
+\n\
+Rst command：\n\
+    rst\n\
+\n\
+    All commands need to end with \\n when sending, such as:\n\
+        rst\\n\n\
 ");
         break;
     default:
