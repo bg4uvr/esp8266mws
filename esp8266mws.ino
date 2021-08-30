@@ -273,7 +273,7 @@ void send_data()
     if (IntV % 10 == 0)
     {
         // 发送软件版本消息 send softwre info
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,TCPIP*:>esp8266mws ver0.14 https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,TCPIP*:>esp8266mws ver0.14c https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
 
 #ifndef DEBUG_MODE
         client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
@@ -291,22 +291,20 @@ void send_data()
     client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
     DBGPRINTLN(msgbuf);
-
-    // 发送完数据后延迟一点时间，以避免网络卡顿时过快关闭连接而造成数据发送失败
-    delay(200);
 }
 
 //登陆APRS服务器发送数据
 // Log on to the APRS server and send data
 bool loginAPRS()
 {
-    uint8_t retrycnt = 0;
     const char *msg[] = {
         "正在连接APRS服务器",
         "Connecting to the APRS server",
     };
     DBGPRINTLN(msg[mycfg.language]);
-    do
+
+    uint8_t timeout = 0;  //超时计数器
+    while (timeout++ < 5) //5次都未能成功连接服务器 // Failed to connect to the server
     {
         if (client_aprs.connect(mycfg.aprs_server_addr, mycfg.aprs_server_port))
         {
@@ -315,9 +313,10 @@ bool loginAPRS()
                 "The APRS server is connected",
             };
             DBGPRINTLN(msg1[mycfg.language]);
-            do
+
+            timeout = 0;            //超时计数清零
+            while (timeout++ < 100) //等待发送成功
             {
-                uint8_t recv_cnt = 0;
                 if (client_aprs.available()) //如果缓冲区字符串大于0    // If the buffer string is greater than 0
                 {
                     String line = client_aprs.readStringUntil('\n'); //获取字符串       // Get the string
@@ -333,9 +332,10 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.14 filter m/10", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.14c", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
+                        timeout = 0; //超时计数清零
                     }
                     //登陆验证成功或者失败都发送数据（失败“unverified”也包含“verified”，验证失败也可发送数据，但会显示未验证）
                     // Send data if login verification is successful or fails (" Unverified "includes" Verified "if failed, or data can be sent if verification fails, but it will show" Unverified ")
@@ -346,7 +346,13 @@ bool loginAPRS()
                             "APRS server login successful",
                         };
                         DBGPRINTLN(msg3[mycfg.language]);
-                        send_data(); //发送数据
+                        send_data();         //发送数据
+                        client_aprs.flush(); //等待数据发送完成
+                        const char *msg100[] = {
+                            "数据发送完成",
+                            "datamsg has sent",
+                        };
+                        DBGPRINTLN(msg100[mycfg.language]);
                         return true;
                     }
                     //服务器已满 Server full
@@ -360,25 +366,10 @@ bool loginAPRS()
                         DBGPRINTLN(msg4[mycfg.language]);
                         return false;
                     }
-
-                    //5次收到消息都不是预期的内容
-                    //5 times a message is received that is not what it was intended to be
-                    if (++recv_cnt > 5)
-                    {
-                        const char *msg5[] = {
-                            "错误：没能从服务器接收到预期类型的数据",
-                            "Error: Failed to receive expected type of data from server",
-                        };
-                        DBGPRINTLN(msg5[mycfg.language]);
-                        return false;
-                    };
                 }
-                //服务器已连接但未收到数据，每次延迟2秒
-                // The server is connected but does not receive data
-                else
-                    delay(2000);
-            } while (++retrycnt < 5); //10秒内未收到数据认为超时    // If data is not received within 10 seconds, the timeout is considered
-
+                delay(100); //每0.1秒检查一次是否接收到新数据
+            }
+            // 10秒未接收预期数据，认为超时
             const char *msg6[] = {
                 "错误：接收APRS服务器数据超时",
                 "Error: Receive APRS server data timeout",
@@ -389,11 +380,8 @@ bool loginAPRS()
         //连接APRS服务器失败
         //Failed to connect to the APRS server
         else
-        {
-            DBGPRINT('.');
-            delay(1000);
-        }
-    } while (++retrycnt < 5); //5次都未能成功连接服务器 // Failed to connect to the server
+            delay(2000);
+    }
 
     const char *msg7[] = {
         "\n5次未能成功连接APRS服务器，将休眠1分钟后再重试",
