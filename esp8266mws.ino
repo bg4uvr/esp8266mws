@@ -273,7 +273,7 @@ void send_data()
     if (IntV % 10 == 0)
     {
         // 发送软件版本消息 send softwre info
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,TCPIP*:>esp8266mws ver0.14c https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,TCPIP*:>esp8266mws ver0.15 https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
 
 #ifndef DEBUG_MODE
         client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
@@ -332,7 +332,7 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.14c", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.15", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
                         timeout = 0; //超时计数清零
@@ -346,14 +346,25 @@ bool loginAPRS()
                             "APRS server login successful",
                         };
                         DBGPRINTLN(msg3[mycfg.language]);
-                        send_data();         //发送数据
-                        client_aprs.flush(); //等待数据发送完成
-                        const char *msg100[] = {
-                            "数据发送完成",
-                            "datamsg has sent",
-                        };
-                        DBGPRINTLN(msg100[mycfg.language]);
-                        return true;
+                        send_data();                  //发送数据 send data
+                        if (client_aprs.flush(10000)) //最长等待10秒来完成发送 Wait up to 10 seconds to complete the transmission
+                        {
+                            const char *msg100[] = {
+                                "数据发送成功",
+                                "data sent success",
+                            };
+                            DBGPRINTLN(msg100[mycfg.language]);
+                            return true;
+                        }
+                        else
+                        {
+                            const char *msg101[] = {
+                                "数据发送超时",
+                                "data sending timeout",
+                            };
+                            DBGPRINTLN(msg101[mycfg.language]);
+                            return false;
+                        }
                     }
                     //服务器已满 Server full
                     else if (line.indexOf("Server full") != -1 ||
