@@ -17,6 +17,7 @@
 #include <ArduinoOTA.h>
 #include <Adafruit_AHTX0.h>
 #include <unistd.h>
+#include <time.h>
 
 //ADC模式设置为测量电源模式
 //ADC mode is set to measurement power mode
@@ -269,11 +270,21 @@ void send_data()
     }
 
     // 发送用户自定义消息 send user custom messsage
-    srand(millis());
-    if (rand() % 30 == 0) // 发送概率
+    uint8_t sync_timeout = 50;                                                 //NTP同步超时计数器，设置为5秒
+    configTime(0, 0, "ntp.aliyun.com", "time.asia.apple.com", "pool.ntp.org"); //设置时间格式以及时间服务器的网址
+    DBGPRINTLN("Waiting for time sync from NTP server");                       //等待时间和NTP服务器同步
+    while (time(nullptr) <= 100000 && sync_timeout--)                          //这里需要多读几次，以等待时间同步完成（较早的时间可以认为同步尚未完成）
     {
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,TCPIP*:>esp8266mws ver0.15a https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
-
+        DBGPRINT(".");
+        delay(100);
+    }
+    time_t now = time(nullptr);                                                 //获取当前时间
+    struct tm *timenow = gmtime(&now);                                          //转换成年月日的数字
+    snprintf(msgbuf, sizeof(msgbuf), "\nGMT time is: %s", asctime(timenow));    //格式化时间
+    DBGPRINTLN(msgbuf);                                                         //发送到调试主机显示
+    if ((timenow->tm_hour % 3 == 0) && (timenow->tm_min < (sleepsec / 60) + 1)) //指定时间间隔发送一次（最多可能会多发一次）
+    {
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,TCPIP*:>esp8266mws ver0.15b https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
 #ifndef DEBUG_MODE
         client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
@@ -331,7 +342,7 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.15a", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.15b", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
                         timeout = 0; //超时计数清零
