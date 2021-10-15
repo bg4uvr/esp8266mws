@@ -284,7 +284,7 @@ void send_data()
     DBGPRINTLN(msgbuf);                                                         //发送到调试主机显示
     if ((timenow->tm_hour % 3 == 0) && (timenow->tm_min < (sleepsec / 60) + 1)) //指定时间间隔发送一次（最多可能会多发一次）
     {
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR:>esp8266mws ver0.15b https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR:>esp8266mws ver0.15c https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
 #ifndef DEBUG_MODE
         client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
@@ -342,7 +342,7 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.15b", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.15c", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
                         timeout = 0; //超时计数清零
