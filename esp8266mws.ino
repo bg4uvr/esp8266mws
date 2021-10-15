@@ -284,7 +284,7 @@ void send_data()
     DBGPRINTLN(msgbuf);                                                         //发送到调试主机显示
     if ((timenow->tm_hour % 3 == 0) && (timenow->tm_min < (sleepsec / 60) + 1)) //指定时间间隔发送一次（最多可能会多发一次）
     {
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR,TCPIP*:>esp8266mws ver0.15b https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR:>esp8266mws ver0.15b https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
 #ifndef DEBUG_MODE
         client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
@@ -293,7 +293,7 @@ void send_data()
 
     // 发送气象报文 Send weather messages
     snprintf(msgbuf, sizeof(msgbuf),
-             "%s-%s>APUVR,TCPIP*:=%0.2f%cR%0.2f%c_.../...g...t%sr...p...h%sb%sBat:%0.3fV, Int:%dmins.",
+             "%s-%s>APUVR:=%0.2f%cR%0.2f%c_.../...g...t%sr...p...h%sb%sBat:%0.3fV, Int:%dmins.",
              mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
              temperatureS, humidityS, pressureS, voltage, sleepsec / 60);
 
