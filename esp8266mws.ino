@@ -284,7 +284,7 @@ void send_data()
     DBGPRINTLN(msgbuf);                                                         //发送到调试主机显示
     if ((timenow->tm_hour % 3 == 0) && (timenow->tm_min < (sleepsec / 60) + 1)) //指定时间间隔发送一次（最多可能会多发一次）
     {
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR:>esp8266mws ver0.15c https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR:>esp8266mws ver0.15d https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
 #ifndef DEBUG_MODE
         client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
@@ -342,7 +342,7 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.15c", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.15d", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
                         timeout = 0; //超时计数清零
@@ -410,6 +410,83 @@ bool loginAPRS()
     };
     DBGPRINTLN(msg7[mycfg.language]);
     return false;
+}
+
+//显示配置数据
+// Display the configuration data
+void dispset()
+{
+    switch (mycfg.language)
+    {
+    case CN:
+        client_dbg.println("系统当前配置：");
+        client_dbg.print("aprs服务器地址:\t");
+        client_dbg.println(mycfg.aprs_server_addr);
+        client_dbg.print("aprs服务器端口:\t");
+        client_dbg.println(mycfg.aprs_server_port);
+        client_dbg.print("调试主机地址:\t");
+        client_dbg.println(mycfg.debug_server_addr);
+        client_dbg.print("调试主机端口:\t");
+        client_dbg.println(mycfg.debug_server_port);
+        client_dbg.print("呼号:\t");
+        client_dbg.println(mycfg.callsign);
+        client_dbg.print("SSID:\t");
+        client_dbg.println(mycfg.ssid);
+        client_dbg.print("APRS验证码:\t");
+        client_dbg.println(mycfg.password);
+        client_dbg.print("最小发送间隔:\t");
+        client_dbg.println(mycfg.min_send_interval);
+        client_dbg.print("最大发送间隔:\t");
+        client_dbg.println(mycfg.max_send_interval);
+        client_dbg.print("停机电压:\t");
+        client_dbg.printf("%0.2f\n", mycfg.stop_voltage);
+        client_dbg.print("重启电压:\t");
+        client_dbg.printf("%0.2f\n", mycfg.restart_voltage);
+        client_dbg.print("经度:\t");
+        client_dbg.printf("%0.2f\n", mycfg.lon);
+        client_dbg.print("纬度:\t");
+        client_dbg.printf("%0.2f\n", mycfg.lat);
+        client_dbg.print("语言设置:\t");
+        client_dbg.println(mycfg.language);
+        client_dbg.print("系统运行状态:\t");
+        client_dbg.println(mycfg.sysstate);
+        break;
+    case EN:
+        client_dbg.println("System current configuration:");
+        client_dbg.print("APRS server address:\t");
+        client_dbg.println(mycfg.aprs_server_addr);
+        client_dbg.print("APRS server port:\t");
+        client_dbg.println(mycfg.aprs_server_port);
+        client_dbg.print("Debug host address:\t");
+        client_dbg.println(mycfg.debug_server_addr);
+        client_dbg.print("Debug host port:\t");
+        client_dbg.println(mycfg.debug_server_port);
+        client_dbg.print("Callsign:\t");
+        client_dbg.println(mycfg.callsign);
+        client_dbg.print("SSID:\t");
+        client_dbg.println(mycfg.ssid);
+        client_dbg.print("APRS verification code:\t");
+        client_dbg.println(mycfg.password);
+        client_dbg.print("Min send interval:\t");
+        client_dbg.println(mycfg.min_send_interval);
+        client_dbg.print("Max send interval:\t");
+        client_dbg.println(mycfg.max_send_interval);
+        client_dbg.print("Stop work voltage:\t");
+        client_dbg.printf("%0.2f\n", mycfg.stop_voltage);
+        client_dbg.print("Rework voltage:\t");
+        client_dbg.printf("%0.2f\n", mycfg.restart_voltage);
+        client_dbg.print("Longitude:\t");
+        client_dbg.printf("%0.2f\n", mycfg.lon);
+        client_dbg.print("Latitude:\t");
+        client_dbg.printf("%0.2f\n", mycfg.lat);
+        client_dbg.print("Language:\t");
+        client_dbg.println(mycfg.language);
+        client_dbg.print("System state:\t");
+        client_dbg.println(mycfg.sysstate);
+        break;
+    default:
+        break;
+    }
 }
 
 //显示系统信息
@@ -527,81 +604,14 @@ Rst command：\n\
     }
 }
 
-//显示配置数据
-// Display the configuration data
-void dispset()
+//保存配置数据
+// Save the configuration data
+void eeprom_save()
 {
-    switch (mycfg.language)
-    {
-    case CN:
-        client_dbg.println("系统当前配置：");
-        client_dbg.print("aprs服务器地址:\t");
-        client_dbg.println(mycfg.aprs_server_addr);
-        client_dbg.print("aprs服务器端口:\t");
-        client_dbg.println(mycfg.aprs_server_port);
-        client_dbg.print("调试主机地址:\t");
-        client_dbg.println(mycfg.debug_server_addr);
-        client_dbg.print("调试主机端口:\t");
-        client_dbg.println(mycfg.debug_server_port);
-        client_dbg.print("呼号:\t");
-        client_dbg.println(mycfg.callsign);
-        client_dbg.print("SSID:\t");
-        client_dbg.println(mycfg.ssid);
-        client_dbg.print("APRS验证码:\t");
-        client_dbg.println(mycfg.password);
-        client_dbg.print("最小发送间隔:\t");
-        client_dbg.println(mycfg.min_send_interval);
-        client_dbg.print("最大发送间隔:\t");
-        client_dbg.println(mycfg.max_send_interval);
-        client_dbg.print("停机电压:\t");
-        client_dbg.printf("%0.2f\n", mycfg.stop_voltage);
-        client_dbg.print("重启电压:\t");
-        client_dbg.printf("%0.2f\n", mycfg.restart_voltage);
-        client_dbg.print("经度:\t");
-        client_dbg.printf("%0.2f\n", mycfg.lon);
-        client_dbg.print("纬度:\t");
-        client_dbg.printf("%0.2f\n", mycfg.lat);
-        client_dbg.print("语言设置:\t");
-        client_dbg.println(mycfg.language);
-        client_dbg.print("系统运行状态:\t");
-        client_dbg.println(mycfg.sysstate);
-        break;
-    case EN:
-        client_dbg.println("System current configuration:");
-        client_dbg.print("APRS server address:\t");
-        client_dbg.println(mycfg.aprs_server_addr);
-        client_dbg.print("APRS server port:\t");
-        client_dbg.println(mycfg.aprs_server_port);
-        client_dbg.print("Debug host address:\t");
-        client_dbg.println(mycfg.debug_server_addr);
-        client_dbg.print("Debug host port:\t");
-        client_dbg.println(mycfg.debug_server_port);
-        client_dbg.print("Callsign:\t");
-        client_dbg.println(mycfg.callsign);
-        client_dbg.print("SSID:\t");
-        client_dbg.println(mycfg.ssid);
-        client_dbg.print("APRS verification code:\t");
-        client_dbg.println(mycfg.password);
-        client_dbg.print("Min send interval:\t");
-        client_dbg.println(mycfg.min_send_interval);
-        client_dbg.print("Max send interval:\t");
-        client_dbg.println(mycfg.max_send_interval);
-        client_dbg.print("Stop work voltage:\t");
-        client_dbg.printf("%0.2f\n", mycfg.stop_voltage);
-        client_dbg.print("Rework voltage:\t");
-        client_dbg.printf("%0.2f\n", mycfg.restart_voltage);
-        client_dbg.print("Longitude:\t");
-        client_dbg.printf("%0.2f\n", mycfg.lon);
-        client_dbg.print("Latitude:\t");
-        client_dbg.printf("%0.2f\n", mycfg.lat);
-        client_dbg.print("Language:\t");
-        client_dbg.println(mycfg.language);
-        client_dbg.print("System state:\t");
-        client_dbg.println(mycfg.sysstate);
-        break;
-    default:
-        break;
-    }
+    mycfg.crc = crc32((uint8_t *)&mycfg + 4, sizeof(mycfg) - 4); //计算校验值       Calculate the checksum
+    for (uint8_t i = 0; i < sizeof(cfg_t); i++)                  //写入配置数据     Write configuration data
+        EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
+    EEPROM.commit(); //提交数据
 }
 
 //配置数据初始化
@@ -1012,16 +1022,6 @@ void voltageLOW()
     // When debugging, the voltage is low due to the external resistor on the ADC pin on the board, so a normal range of voltage value is virtual here
     voltage = 4.1f;
 #endif
-}
-
-//保存配置数据
-// Save the configuration data
-void eeprom_save()
-{
-    mycfg.crc = crc32((uint8_t *)&mycfg + 4, sizeof(mycfg) - 4); //计算校验值       Calculate the checksum
-    for (uint8_t i = 0; i < sizeof(cfg_t); i++)                  //写入配置数据     Write configuration data
-        EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
-    EEPROM.commit(); //提交数据
 }
 
 //连接调试主机时的空闲扫描
