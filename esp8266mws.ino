@@ -284,7 +284,7 @@ void send_data()
     DBGPRINTLN(msgbuf);                                                         //发送到调试主机显示
     if ((timenow->tm_hour % 3 == 0) && (timenow->tm_min < (sleepsec / 60) + 1)) //指定时间间隔发送一次（最多可能会多发一次）
     {
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR:>esp8266mws ver0.15d https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR:>esp8266mws ver0.15f https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
 #ifndef DEBUG_MODE
         client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
@@ -293,7 +293,7 @@ void send_data()
 
     // 发送气象报文 Send weather messages
     snprintf(msgbuf, sizeof(msgbuf),
-             "%s-%s>APUVR:=%0.2f%cR%0.2f%c_.../...g...t%sr...p...h%sb%sBat:%0.3fV, Int:%dmins.",
+             "%s-%s>APUVR:=%07.2f%cR%08.2f%c_.../...g...t%sr...p...h%sb%sBat:%0.3fV, Int:%dmins.",
              mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
              temperatureS, humidityS, pressureS, voltage, sleepsec / 60);
 
@@ -342,7 +342,7 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.15d", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.15f", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
                         timeout = 0; //超时计数清零
@@ -526,11 +526,11 @@ void dispsysinfo()
 必设参数:\n\
     -c      呼号            BGnXXX              个人台站的呼号\n\
     -w      验证码          12345               这个验证码的来源不解释\n\
+\n\
+可选参数：\n\
     -o      经度            12106.00            格式：dddmm.mm，东正西负\n\
     -a      纬度            3153.00             格式：ddmm.mm，北正南负\n\
     -s      APRS服务器地址  xxx.aprs2.net       不解释\n\
-\n\
-可选参数：\n\
     -d      SSID            13                  SSID(支持2位字母的新规则)\n\
     -p      APRS服务器端口  14580               不解释\n\
     -g      调试主机地址    192.168.1.125       用于调试、配置及监控的主机内网IP\n\
@@ -542,6 +542,7 @@ void dispsysinfo()
     -l      语言选择        CN                  0 中文；1 英文\n\
 \n\
 配置命令示例:\n\
+    cfg -c BGnXXX -w 12345\n\
     cfg -c BGnXXX -w 12345 -o 12100.00 -a 3100.00 -s xxx.aprs2.net\n\
 \n\
 更改语言 (Change language)：\n\
@@ -568,11 +569,11 @@ Format description of configuration command:\n\
 Required parameters:\n\
     -c      callsign            BGnXXX              Call sign of amateur radio station\n\
     -w      Verification code   12345               The origin of this CAPTCHA is not explained\n\
-    -o      longitude           12106.00            Format：dddmm.mm，E plus and W minus\n\
-    -a      latitude            3153.00             Format：ddmm.mm，N plus and S minus\n\
-    -s      APRS server address xxx.aprs2.net       Don't explain\n\
 \n\
 Optional parameters:\n\
+    -a      latitude            3153.00             Format：ddmm.mm，N plus and S minus\n\
+    -o      longitude           12106.00            Format：dddmm.mm，E plus and W minus\n\
+    -s      APRS server address xxx.aprs2.net       Don't explain\n\
     -d      SSID                13                  SSID(New rule to support 2-bit letters)\n\
     -p      APRS server port    14580               don't explain\n\
     -g      Debug host address  192.168.1.125       host Intranet IP for debugg,config,monitor\n\
@@ -584,6 +585,7 @@ Optional parameters:\n\
     -l      Language selection  CN                  0 Chinese, 1 English\n\
 \n\
 Examples of configuration commands:\n\
+    cfg -c BGnXXX -w 12345\n\
     cfg -c BGnXXX -w 12345 -o 12100.00 -a 3100.00 -s xxx.aprs2.net\n\
 \n\
 Change language：\n\
@@ -620,14 +622,14 @@ void cfg_init()
 {
     mycfg.stop_voltage = 3.2f;
     mycfg.restart_voltage = 3.4f;
-    mycfg.lon = 0.0f;
-    mycfg.lat = 0.0f;
+    mycfg.lon = 100.0f; // default lon: 01d00.00`
+    mycfg.lat = 100.0f; // default lat: 001d00.00`
     mycfg.min_send_interval = 600;
     mycfg.max_send_interval = 1200;
     mycfg.password = 0;
     mycfg.aprs_server_port = 14580;
     mycfg.debug_server_port = 12345;
-    strcpy(mycfg.aprs_server_addr, "");
+    strcpy(mycfg.aprs_server_addr, "rotate.aprs2.net"); //default server
     strcpy(mycfg.debug_server_addr, "192.168.1.125");
     strcpy(mycfg.callsign, "NOCALL");
     strcpy(mycfg.ssid, "13");
@@ -954,16 +956,11 @@ void set_cfg()
 
     //判断是否已经设置必设参数
     //Determines whether the required parameters have been set
-    if (
-        mycfg.aprs_server_addr == "" ||
-        mycfg.callsign == "" ||
-        mycfg.password == 0 ||
-        mycfg.lon == 0.0f ||
-        mycfg.lat == 0.0f)
+    if (mycfg.callsign == "" || mycfg.password == 0)
     {
         const char *msg2[] = {
-            "有必设参数未被设置，请重新输入。（服务器地址、呼号、密码、经度、纬度这5项数据为必设参数）",
-            "Required parameters are not set. Please reenter.(Server address, call sign, password, longitude and latitude are required parameters)",
+            "有必设参数未被设置，请重新输入。（呼号、密码这2项数据为必设参数）",
+            "Required parameters are not set. Please reenter.(Callsign and Password must be set)",
         };
         DBGPRINTLN(msg2[mycfg.language]);
         return;
