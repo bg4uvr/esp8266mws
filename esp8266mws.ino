@@ -79,10 +79,14 @@ typedef struct
 // System global variable
 cfg_t mycfg;                        //系统配置参数                  //System configuration parameters
 WiFiClient client_aprs, client_dbg; //实例化aprs服务器连接和调试连接  //Instantiate APRS server connections and debug connections
+Adafruit_BMP280 bmp;                //BMP280实例
+Adafruit_AHTX0 aht;                 //AHT20实例
 float voltage;                      //电池电压                      //The battery voltage
 uint32_t last_send;                 //上一次发送时刻                //Last Send Time
 uint16_t sleepsec;                  //下次工作延时                  //Next time work delay
 char msgbuf[150] = {0};             //消息格式化缓存                //Message format cache
+bool bm280_state = false;           //bmp280状态（初始化是否成功）
+bool aht20_state = false;           //aht20状态（初始化是否成功）
 
 //CRC32 校验程序
 //CRC32 Check
@@ -128,14 +132,7 @@ void WiFisetup()
 // read BMP280
 bool read_bmp280(float *temperature, float *pressure)
 {
-    Adafruit_BMP280 bmp; //初始化BMP280实例 // Initialize the BMP280 instance
-    const char *msg[] = {
-        "正在读取BMP280传感器",
-        "Reading the BMP280 sensor",
-    };
-    DBGPRINTLN(msg[mycfg.language]);
-    Wire.begin(12, 14); //重定义I2C端口（SDA、SCL）     //Redefine I2C ports (SDA, SCL)
-    if (!bmp.begin())   //if (!bmp.begin(BMP280_ADDRESS_ALT))
+    if (bm280_state == false)
     {
         const char *msg1[] = {
             "BMP280读取失败",
@@ -144,6 +141,7 @@ bool read_bmp280(float *temperature, float *pressure)
         DBGPRINTLN(msg1[mycfg.language]);
         return false;
     }
+
     //设置BMP280采样参数
     // Set the BMP280 sampling parameter
     bmp.setSampling(Adafruit_BMP280::MODE_FORCED, //FORCE模式读完自动转换回sleep模式 // return to sleep mode automatically after reading in FORCE mode
@@ -165,23 +163,17 @@ bool read_bmp280(float *temperature, float *pressure)
 // read AHT20
 bool read_aht20(float *temperature, float *humidity)
 {
-    sensors_event_t humAHT, tempAHT;
-    Adafruit_AHTX0 aht;
-    const char *msg[] = {
-        "正在读取AHT20传感器",
-        "Reading the AHT20 sensor",
-    };
-    DBGPRINTLN(msg[mycfg.language]);
-    Wire.begin(12, 14); //重定义I2C端口（SDA、SCL） // Redefine the I2C port (SDA, SCL)
-    if (!aht.begin())
+    if (aht20_state == false)
     {
         const char *msg1[] = {
             "AHT20读取失败",
             "AHT20 read failed",
         };
-        DBGPRINTLN(msg1[mycfg.language]);
+        DBGPRINTLN(msg1[mycfg.language]);        
         return false;
     }
+
+    sensors_event_t humAHT, tempAHT;
 
     aht.getEvent(&humAHT, &tempAHT);
 
@@ -284,7 +276,7 @@ void send_data()
     DBGPRINTLN(msgbuf);                                                         //发送到调试主机显示
     if ((timenow->tm_hour % 3 == 0) && (timenow->tm_min < (sleepsec / 60) + 1)) //指定时间间隔发送一次（最多可能会多发一次）
     {
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR:>esp8266mws ver0.15f https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR:>esp8266mws ver0.16 https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
 #ifndef DEBUG_MODE
         client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
@@ -342,7 +334,7 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.15f", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.16", mycfg.callsign, mycfg.ssid, mycfg.password);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
                         timeout = 0; //超时计数清零
@@ -1070,6 +1062,17 @@ void setup()
     // Validate the configuration data. If the validation fails, initialize the default configuration data and enter set mode
     if (crc32((uint8_t *)&mycfg + 4, sizeof(mycfg) - 4) != mycfg.crc)
         cfg_init();
+
+    //重定义I2C端口（SDA、SCL）     //Redefine I2C ports (SDA, SCL)
+    Wire.begin(12, 14);
+
+    //初始化bmp280
+    if (bmp.begin()) //if (!bmp.begin(BMP280_ADDRESS_ALT))
+        bm280_state = true;
+
+    //初始化aht20
+    if (aht.begin())
+        aht20_state = true;
 }
 
 //程序主循环
