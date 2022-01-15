@@ -2,12 +2,11 @@
     Esp8266MWS     (Esp8266 Mini Weather Station)
                                 bg4uvr @ 2021.5
 */
-
-#define DEBUG_MODE //调试模式时不把语句发往服务器 Do not send statements to the server while debugging mode
+//#define DEBUG_MODE //调试模式时不把语句发往服务器 Do not send statements to the server while debugging mode
 //#define EEPROM_CLEAR //调试时清除EEPROM Clear EEPROM while debugging
 //#define VCC_CHK_OFF //关闭电源检测
 
-const char fw[20] = {"0.16a"}; //firmware version number
+const char fw[20] = {"0.16b"}; //firmware version number
 
 //包含头文件
 //Include header file
@@ -1096,12 +1095,12 @@ void loop()
             mycfg.sysstate = SYS_STOP; //转换为停止状态 Switch to the stop state
             eeprom_save();             //保存状态设置   Save state Settings
         }
-        // 如果电压高于4.2V，不休眠直到电压低于4.1
-        // if voltage higher than 4.2V, Run until the voltage drops below 4.1V
-        else if (voltage >= 4.2f)
+        // 如果电压高于4.3V，不休眠直到电压低于4.2
+        // if voltage higher than 4.3V, Run until the voltage drops below 4.2V
+        else if (voltage >= 4.3f)
         {
-            //如果电压高于4.1f，一直运行
-            while (voltage > 4.1f)
+            //如果电压高于4.2f，一直运行
+            while (voltage > 4.2f)
             {
                 //延时设置最小
                 sleepsec = mycfg.min_send_interval;
@@ -1144,7 +1143,7 @@ void loop()
         {
             //计算工作时间间隔
             // Calculate the work interval
-            sleepsec = mycfg.min_send_interval + (mycfg.max_send_interval - mycfg.min_send_interval) * (4.2f - voltage) / (4.2f - mycfg.stop_voltage);
+            sleepsec = mycfg.min_send_interval + (mycfg.max_send_interval - mycfg.min_send_interval) * (4.3f - voltage) / (4.3f - mycfg.stop_voltage);
 
             //如果连接调试服务器成功
             // If the connection to the debug server is successful
@@ -1160,7 +1159,7 @@ void loop()
                 {
                     //重新计算工作时间间隔
                     // Recalculate the work interval
-                    sleepsec = mycfg.min_send_interval + (mycfg.max_send_interval - mycfg.min_send_interval) * (4.2f - voltage) / (4.2f - mycfg.stop_voltage);
+                    sleepsec = mycfg.min_send_interval + (mycfg.max_send_interval - mycfg.min_send_interval) * (4.3f - voltage) / (4.3f - mycfg.stop_voltage);
 
                     //如果登录发送数据 失败
                     // If logon and send data fail
