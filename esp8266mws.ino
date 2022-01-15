@@ -3,8 +3,11 @@
                                 bg4uvr @ 2021.5
 */
 
-//#define DEBUG_MODE //调试模式时不把语句发往服务器 Do not send statements to the server while debugging mode
+#define DEBUG_MODE //调试模式时不把语句发往服务器 Do not send statements to the server while debugging mode
 //#define EEPROM_CLEAR //调试时清除EEPROM Clear EEPROM while debugging
+//#define VCC_CHK_OFF //关闭电源检测
+
+const char fw[20] = {"0.16a"}; //firmware version number
 
 //包含头文件
 //Include header file
@@ -169,7 +172,7 @@ bool read_aht20(float *temperature, float *humidity)
             "AHT20读取失败",
             "AHT20 read failed",
         };
-        DBGPRINTLN(msg1[mycfg.language]);        
+        DBGPRINTLN(msg1[mycfg.language]);
         return false;
     }
 
@@ -276,7 +279,7 @@ void send_data()
     DBGPRINTLN(msgbuf);                                                         //发送到调试主机显示
     if ((timenow->tm_hour % 3 == 0) && (timenow->tm_min < (sleepsec / 60) + 1)) //指定时间间隔发送一次（最多可能会多发一次）
     {
-        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR:>esp8266mws ver0.16 https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid);
+        snprintf(msgbuf, sizeof(msgbuf), "%s-%s>APUVR:>esp8266mws ver%s https://github.com/bg4uvr/esp8266mws", mycfg.callsign, mycfg.ssid, fw);
 #ifndef DEBUG_MODE
         client_aprs.println(msgbuf); //数据发往服务器   // The data is sent to the server
 #endif
@@ -334,7 +337,7 @@ bool loginAPRS()
                             "Logging on to the ARPS server...",
                         };
                         DBGPRINTLN(msg2[mycfg.language]);
-                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws 0.16", mycfg.callsign, mycfg.ssid, mycfg.password);
+                        sprintf(msgbuf, "user %s-%s pass %d vers esp8266mws %s", mycfg.callsign, mycfg.ssid, mycfg.password, fw);
                         client_aprs.println(msgbuf); //发送登录语句 // Send the logon statement
                         DBGPRINTLN(msgbuf);
                         timeout = 0; //超时计数清零
@@ -996,7 +999,7 @@ void set_cfg()
 // The voltage is too low
 void voltageLOW()
 {
-#ifndef DEBUG_MODE
+#if !(defined DEBUG_MODE || defined VCC_CHK_OFF)
     voltage = (float)ESP.getVcc() / 1000;
 
     //如果电压小于3.0V，直接休眠60分钟
