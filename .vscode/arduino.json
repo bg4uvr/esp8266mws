@@ -1,0 +1,7 @@
+{
+    "output": "D:/Arduino/build/aprs",
+    "port": "192.168.1.118",
+    "sketch": "esp8266mws.ino",
+    "configuration": "xtal=80,vt=flash,exception=disabled,stacksmash=disabled,ssl=all,mmu=3232,non32xfer=fast,eesz=4M2M,ip=lm2f,dbg=Disabled,lvl=None____,wipe=none,baud=921600",
+    "board": "esp8266:esp8266:d1"
+}
