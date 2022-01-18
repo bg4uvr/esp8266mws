@@ -6,7 +6,7 @@
 //#define EEPROM_CLEAR //调试时清除EEPROM Clear EEPROM while debugging
 //#define VCC_CHK_OFF //关闭电源检测
 
-const char fw[20] = {"0.16b"}; //firmware version number
+const char fw[20] = {"0.16c"}; //firmware version number
 
 //包含头文件
 //Include header file
@@ -1176,7 +1176,8 @@ void loop()
                 }
                 // 调试连接断开后，重新计算休眠时间
                 // After the debug connection is broken, the sleep time is recalculated
-                sleepsec -= (millis() - last_send) / 1000;
+                uint32_t t_now = millis();
+                sleepsec -= t_now > last_send ? (t_now - last_send) / 1000 : (last_send - t_now) / 1000;
             }
             //没能连接到调试服务器
             // Unable to connect to the debug server
