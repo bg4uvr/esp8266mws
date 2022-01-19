@@ -12,7 +12,6 @@ const char fw[20] = {"0.16c"}; //firmware version number
 //Include header file
 #include <ESP8266WiFi.h>
 #include <Wire.h>
-#include <Time.h>
 #include <WiFiManager.h>
 #include <Adafruit_BMP280.h>
 #include <EEPROM.h>
