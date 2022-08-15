@@ -1,4 +1,4 @@
-/*  
+/*
     Esp8266MWS     (Esp8266 Mini Weather Station)
                                 bg4uvr @ 2021.5
 */
@@ -6,10 +6,10 @@
 //#define EEPROM_CLEAR //调试时清除EEPROM Clear EEPROM while debugging
 //#define VCC_CHK_OFF //关闭电源检测
 
-const char fw[20] = {"0.16c"}; //firmware version number
+const char fw[20] = {"0.16d"}; // firmware version number
 
 //包含头文件
-//Include header file
+// Include header file
 #include <ESP8266WiFi.h>
 #include <Wire.h>
 #include <WiFiManager.h>
@@ -20,8 +20,8 @@ const char fw[20] = {"0.16c"}; //firmware version number
 #include <unistd.h>
 #include <time.h>
 
-//ADC模式设置为测量电源模式
-//ADC mode is set to measurement power mode
+// ADC模式设置为测量电源模式
+// ADC mode is set to measurement power mode
 ADC_MODE(ADC_VCC);
 
 //判断到已连接调试主机时，将把调试消息发往主机
@@ -63,15 +63,15 @@ typedef struct
     float restart_voltage;      //恢复工作电压      // Restore working voltage
     float lon;                  //经度              // longitude
     float lat;                  //纬度              // latitude
-    uint16_t password;          //APRS密码          // APRS password
+    uint16_t password;          // APRS密码          // APRS password
     uint16_t min_send_interval; //最小发送间隔      //Minimum transmission interval
     uint16_t max_send_interval; //最大发送间隔      //Maximum transmission interval
-    uint16_t aprs_server_port;  //APRS服务器端口    //APRS server port
+    uint16_t aprs_server_port;  // APRS服务器端口    //APRS server port
     uint16_t debug_server_port; //调试主机端口      //Debug host port
-    char aprs_server_addr[26];  //APRS服务器地址    //APRS server address
+    char aprs_server_addr[26];  // APRS服务器地址    //APRS server address
     char debug_server_addr[26]; //调试主机地址      //Debugging host address
     char callsign[8];           //呼号              //callsign
-    char ssid[4];               //SSID
+    char ssid[4];               // SSID
     sys_mode_t sysstate;        //系统状态          //The system state
     language_t language;        //语言              //language
 } cfg_t;
@@ -80,17 +80,17 @@ typedef struct
 // System global variable
 cfg_t mycfg;                        //系统配置参数                  //System configuration parameters
 WiFiClient client_aprs, client_dbg; //实例化aprs服务器连接和调试连接  //Instantiate APRS server connections and debug connections
-Adafruit_BMP280 bmp;                //BMP280实例
-Adafruit_AHTX0 aht;                 //AHT20实例
+Adafruit_BMP280 bmp;                // BMP280实例
+Adafruit_AHTX0 aht;                 // AHT20实例
 float voltage;                      //电池电压                      //The battery voltage
 uint32_t last_send;                 //上一次发送时刻                //Last Send Time
 uint16_t sleepsec;                  //下次工作延时                  //Next time work delay
 char msgbuf[150] = {0};             //消息格式化缓存                //Message format cache
-bool bm280_state = false;           //bmp280状态（初始化是否成功）
-bool aht20_state = false;           //aht20状态（初始化是否成功）
+bool bm280_state = false;           // bmp280状态（初始化是否成功）
+bool aht20_state = false;           // aht20状态（初始化是否成功）
 
-//CRC32 校验程序
-//CRC32 Check
+// CRC32 校验程序
+// CRC32 Check
 uint32_t crc32(uint8_t *data, int length)
 {
     uint32_t crc = 0xffffffff;
@@ -116,7 +116,7 @@ uint32_t crc32(uint8_t *data, int length)
 void WiFisetup()
 {
     WiFiManager wifiManager;
-    //wifiManager.resetSettings();
+    // wifiManager.resetSettings();
     wifiManager.setConfigPortalTimeout(300);
 
     if (!wifiManager.autoConnect("Esp8266MWS-SET"))
@@ -145,7 +145,7 @@ bool read_bmp280(float *temperature, float *pressure)
 
     //设置BMP280采样参数
     // Set the BMP280 sampling parameter
-    bmp.setSampling(Adafruit_BMP280::MODE_FORCED, //FORCE模式读完自动转换回sleep模式 // return to sleep mode automatically after reading in FORCE mode
+    bmp.setSampling(Adafruit_BMP280::MODE_FORCED, // FORCE模式读完自动转换回sleep模式 // return to sleep mode automatically after reading in FORCE mode
                     Adafruit_BMP280::SAMPLING_X1,
                     Adafruit_BMP280::SAMPLING_X4,
                     Adafruit_BMP280::FILTER_X16,
@@ -201,8 +201,8 @@ void send_data()
     bool bmpRES = read_bmp280(&temperatureBMP, &pressure); //读取BMP280         Read BMP280
     bool ahtRES = read_aht20(&temperatureAHT, &humidity);  //读取AHT20温度湿度  Read AHT20 temperature and humidity
 
-    //BMP280读取成功
-    //BMP280 read successfully
+    // BMP280读取成功
+    // BMP280 read successfully
     if (bmpRES)
     {
         snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)(temperatureBMP * 9 / 5 + 32)); //保存温度字符串   // Save the temperature string
@@ -222,8 +222,8 @@ void send_data()
             }
         }
     }
-    //AHT20读取成功
-    //AHT20 read successfully
+    // AHT20读取成功
+    // AHT20 read successfully
     if (ahtRES)
     {
         snprintf(temperatureS, sizeof(temperatureS), "%03d", (int8_t)(temperatureAHT * 9 / 5 + 32)); //保存温度字符串   // Save the temperature string
@@ -263,7 +263,7 @@ void send_data()
     }
 
     // 发送用户自定义消息 send user custom messsage
-    uint8_t sync_timeout = 50;                                                 //NTP同步超时计数器，设置为5秒
+    uint8_t sync_timeout = 50;                                                 // NTP同步超时计数器，设置为5秒
     configTime(0, 0, "ntp.aliyun.com", "time.asia.apple.com", "pool.ntp.org"); //设置时间格式以及时间服务器的网址
     DBGPRINTLN("Waiting for time sync from NTP server");                       //等待时间和NTP服务器同步
     while (time(nullptr) <= 100000 && sync_timeout--)                          //这里需要多读几次，以等待时间同步完成（较早的时间可以认为同步尚未完成）
@@ -286,7 +286,7 @@ void send_data()
 
     // 发送气象报文 Send weather messages
     snprintf(msgbuf, sizeof(msgbuf),
-             "%s-%s>APUVR:=%07.2f%cR%08.2f%c_.../...g...t%sr...p...h%sb%sBat:%0.3fV, Int:%dmins.",
+             "%s-%s>APUVR:!%07.2f%cR%08.2f%c_.../...g...t%sr...p...h%sb%sBat:%0.3fV, Int:%dmins.",
              mycfg.callsign, mycfg.ssid, mycfg.lat, mycfg.lat > 0 ? 'N' : 'S', mycfg.lon, mycfg.lon > 0 ? 'E' : 'W',
              temperatureS, humidityS, pressureS, voltage, sleepsec / 60);
 
@@ -307,7 +307,7 @@ bool loginAPRS()
     DBGPRINTLN(msg[mycfg.language]);
 
     uint8_t timeout = 0;  //超时计数器
-    while (timeout++ < 5) //5次都未能成功连接服务器 // Failed to connect to the server
+    while (timeout++ < 5) // 5次都未能成功连接服务器 // Failed to connect to the server
     {
         if (client_aprs.connect(mycfg.aprs_server_addr, mycfg.aprs_server_port))
         {
@@ -327,8 +327,8 @@ bool loginAPRS()
 
                     //如果已经连接到服务器，则开始登录
                     // If you are already connected to the server, start logging in
-                    if (line.indexOf("aprsc") != -1 ||     //aprsc服务器
-                        line.indexOf("javAPRSSrvr") != -1) //javAPRSSrvr服务器
+                    if (line.indexOf("aprsc") != -1 ||     // aprsc服务器
+                        line.indexOf("javAPRSSrvr") != -1) // javAPRSSrvr服务器
                     {
                         const char *msg2[] = {
                             "正在登录ARPS服务器...",
@@ -392,7 +392,7 @@ bool loginAPRS()
             return false;
         }
         //连接APRS服务器失败
-        //Failed to connect to the APRS server
+        // Failed to connect to the APRS server
         else
             delay(2000);
     }
@@ -622,7 +622,7 @@ void cfg_init()
     mycfg.password = 0;
     mycfg.aprs_server_port = 14580;
     mycfg.debug_server_port = 12345;
-    strcpy(mycfg.aprs_server_addr, "rotate.aprs2.net"); //default server
+    strcpy(mycfg.aprs_server_addr, "rotate.aprs2.net"); // default server
     strcpy(mycfg.debug_server_addr, "192.168.1.125");
     strcpy(mycfg.callsign, "NOCALL");
     strcpy(mycfg.ssid, "13");
@@ -665,7 +665,7 @@ void set_cfg()
         };
         DBGPRINTLN(msg0[mycfg.language]);
         delay(2000);
-        ESP.reset(); //reset~
+        ESP.reset(); // reset~
     }
 
     //判断命令是否正确
@@ -694,9 +694,9 @@ void set_cfg()
 
     //解析各参数
     // Parse the parameters
-    optind = 0; //optind 为getopt函数使用的全局变量，用于存储getopt的索引个数。此处必须清零，否则下次将无法工常工作
-                /* Optind is a global variable used by getopt.    It is used to store the number of indexes of 
-                getopt.This place must be cleared, otherwise will not be able to work regularly next time */
+    optind = 0; // optind 为getopt函数使用的全局变量，用于存储getopt的索引个数。此处必须清零，否则下次将无法工常工作
+    /* Optind is a global variable used by getopt.    It is used to store the number of indexes of
+    getopt.This place must be cleared, otherwise will not be able to work regularly next time */
     int ch;
     bool fail = false;
     bool ok = false;
@@ -948,7 +948,7 @@ void set_cfg()
     }
 
     //判断是否已经设置必设参数
-    //Determines whether the required parameters have been set
+    // Determines whether the required parameters have been set
     if (mycfg.callsign == "" || mycfg.password == 0)
     {
         const char *msg2[] = {
@@ -1004,7 +1004,7 @@ void voltageLOW()
     // If the voltage is less than 3.0V, sleep directly for 60 minutes
     if (voltage < 3.0f)
     {
-        digitalWrite(LED_BUILTIN, 1); //Turn off LED
+        digitalWrite(LED_BUILTIN, 1); // Turn off LED
         ESP.deepSleep((uint32_t)60 * 60 * 1000 * 1000);
     }
 #else
@@ -1020,7 +1020,7 @@ void freeloop()
 {
     set_cfg();           //处理配置命令 Processing configuration commands
     voltageLOW();        //电压过低判断 Voltage is too low to judge
-    ArduinoOTA.handle(); //OTA处理      OTA processing
+    ArduinoOTA.handle(); // OTA处理      OTA processing
     delay(10);           //延时         Time delay
 }
 
@@ -1029,7 +1029,7 @@ void freeloop()
 void setup()
 {
     //配置指示灯并点亮
-    //config and turnon LED
+    // config and turnon LED
     pinMode(2, OUTPUT);
     digitalWrite(LED_BUILTIN, 0);
 
@@ -1068,7 +1068,7 @@ void setup()
     Wire.begin(12, 14);
 
     //初始化bmp280
-    if (bmp.begin()) //if (!bmp.begin(BMP280_ADDRESS_ALT))
+    if (bmp.begin()) // if (!bmp.begin(BMP280_ADDRESS_ALT))
         bm280_state = true;
 
     //初始化aht20
@@ -1077,7 +1077,7 @@ void setup()
 }
 
 //程序主循环
-//main loop
+// main loop
 void loop()
 {
     //判断当前系统状态
@@ -1085,7 +1085,7 @@ void loop()
     switch (mycfg.sysstate)
     {
         //运行状态
-        //run state
+        // run state
     case SYS_RUN:
         //如果电压低于设定值
         // If the voltage is below the set value
@@ -1131,7 +1131,7 @@ void loop()
                     }
 
                     voltageLOW();        //电压过低判断 Voltage is too low to judge
-                    ArduinoOTA.handle(); //OTA处理      OTA processing
+                    ArduinoOTA.handle(); // OTA处理      OTA processing
                     delay(10);
                 }
             }
@@ -1191,14 +1191,14 @@ void loop()
             }
 
             //工作完成，准备休眠
-            //Work done, ready for hibernation
+            // Work done, ready for hibernation
             digitalWrite(LED_BUILTIN, 1);                    //关灯 turnoff LED
             ESP.deepSleep((uint64_t)sleepsec * 1000 * 1000); //休眠 sleep
         }
         break;
 
         //停止状态
-        //stop state
+        // stop state
     case SYS_STOP:
         //如果电压已经高于设定值
         // If the voltage is already above the set value
@@ -1225,7 +1225,7 @@ void loop()
         while (!client_dbg.connect(mycfg.debug_server_addr, mycfg.debug_server_port))
         {
             voltageLOW();        //电压过低判断 Voltage is too low to judge
-            ArduinoOTA.handle(); //OTA处理      OTA processing
+            ArduinoOTA.handle(); // OTA处理      OTA processing
             delay(2000);         //延时2秒      Delay 2 seconds,
         }
 
