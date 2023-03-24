@@ -6,7 +6,7 @@
 //#define EEPROM_CLEAR //调试时清除EEPROM Clear EEPROM while debugging
 //#define VCC_CHK_OFF //关闭电源检测
 
-const char fw[20] = {"0.16d"}; // firmware version number
+const char fw[20] = {"0.16e"}; // firmware version number
 
 //包含头文件
 // Include header file
@@ -91,7 +91,7 @@ bool aht20_state = false;           // aht20状态（初始化是否成功）
 
 // CRC32 校验程序
 // CRC32 Check
-uint32_t crc32(uint8_t *data, int length)
+uint32_t mycrc32(uint8_t *data, int length)
 {
     uint32_t crc = 0xffffffff;
     uint8_t *ldata = data;
@@ -603,7 +603,7 @@ Rst command：\n\
 // Save the configuration data
 void eeprom_save()
 {
-    mycfg.crc = crc32((uint8_t *)&mycfg + 4, sizeof(mycfg) - 4); //计算校验值       Calculate the checksum
+    mycfg.crc = mycrc32((uint8_t *)&mycfg + 4, sizeof(mycfg) - 4); //计算校验值       Calculate the checksum
     for (uint8_t i = 0; i < sizeof(cfg_t); i++)                  //写入配置数据     Write configuration data
         EEPROM.write(i, ((uint8_t *)&mycfg)[i]);
     EEPROM.commit(); //提交数据
@@ -1061,7 +1061,7 @@ void setup()
 
     //校验配置数据，如果校验失败，初始化默认配置数据并进入置模式
     // Validate the configuration data. If the validation fails, initialize the default configuration data and enter set mode
-    if (crc32((uint8_t *)&mycfg + 4, sizeof(mycfg) - 4) != mycfg.crc)
+    if (mycrc32((uint8_t *)&mycfg + 4, sizeof(mycfg) - 4) != mycfg.crc)
         cfg_init();
 
     //重定义I2C端口（SDA、SCL）     //Redefine I2C ports (SDA, SCL)
