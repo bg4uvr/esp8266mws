@@ -5,7 +5,7 @@
 // #define DEBUG_MODE //调试模式时不把语句发往服务器 Do not send statements to the server while debugging mode
 // #define EEPROM_CLEAR //调试时清除EEPROM Clear EEPROM while debugging
 
-const char fw[20] = {"0.17a"}; // firmware version number
+const char fw[20] = {"0.17b"}; // firmware version number
 
 // 包含头文件
 //  Include header file
@@ -77,7 +77,6 @@ cfg_t mycfg;                        // 系统配置参数                  //Sys
 WiFiClient client_aprs, client_dbg; // 实例化aprs服务器连接和调试连接  //Instantiate APRS server connections and debug connections
 Adafruit_BMP280 bmp;                // BMP280实例
 Adafruit_AHTX0 aht;                 // AHT20实例
-float voltage;                      // 电池电压                      //The battery voltage
 uint32_t last_send;                 // 上一次发送时刻                //Last Send Time
 uint32_t sleepsec;
 char msgbuf[150] = {0};   // 消息格式化缓存                //Message format cache
